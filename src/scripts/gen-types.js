@@ -8,7 +8,7 @@
  * 
  * ТРЕБОВАНИЯ:
  * - Установленный Supabase CLI: npm install -g supabase
- * - Настроенный .env с SUPABASE_PROJECT_ID
+ * - Настроенный .env с NEXT_PUBLIC_SUPABASE_PROJECT_ID
  * 
  * ИСПОЛЬЗОВАНИЕ:
  * node scripts/gen-types.js
@@ -29,17 +29,17 @@ const OUTPUT_DIR = path.join(__dirname, '../generated/types');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'database.ts');
 
 // Supabase project ID (из .env или аргумента)
-const PROJECT_ID = process.env.SUPABASE_PROJECT_ID || process.argv[2];
+const PROJECT_ID = process.env.NEXT_PUBLIC_SUPABASE_PROJECT_ID || process.argv[2];
 
 // ============================================================================
 // VALIDATION
 // ============================================================================
 
 if (!PROJECT_ID) {
-  console.error('❌ Error: SUPABASE_PROJECT_ID not found');
+  console.error('❌ Error: NEXT_PUBLIC_SUPABASE_PROJECT_ID not found');
   console.log('');
   console.log('Please set it in .env:');
-  console.log('  SUPABASE_PROJECT_ID=your-project-id');
+  console.log('  NEXT_PUBLIC_SUPABASE_PROJECT_ID=your-project-id');
   console.log('');
   console.log('Or pass as argument:');
   console.log('  node scripts/gen-types.js your-project-id');

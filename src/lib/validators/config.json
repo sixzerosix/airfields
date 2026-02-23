@@ -1,0 +1,175 @@
+{
+	"$schema": "./config.schema.json",
+	"description": "Configuration for auto-generating Zod schemas from Supabase types",
+	"defaults": {
+		"string": [
+			"min(1)",
+			"max(100)"
+		],
+		"number": [
+			"int()"
+		],
+		"boolean": [],
+		"datetime": []
+	},
+	"overrides": {
+		"id": [
+			"uuid()"
+		],
+		"user_id": [
+			"uuid()"
+		],
+		"created_at": [
+			"datetime()"
+		],
+		"updated_at": [
+			"datetime()"
+		],
+		"deleted_at": [
+			"datetime()",
+			"nullable()"
+		],
+		"email": [
+			"email()",
+			"min(5)",
+			"max(100)"
+		],
+		"password": [
+			"min(8)",
+			"max(100)"
+		],
+		"phone": [
+			"regex(/^\\+?[1-9]\\d{1,14}$/)",
+			"optional()"
+		],
+		"url": [
+			"url()",
+			"optional()"
+		],
+		"slug": [
+			"regex(/^[a-z0-9-]+$/)",
+			"min(1)",
+			"max(100)"
+		],
+		"title": [
+			"min(1)",
+			"max(150)"
+		],
+		"name": [
+			"min(1)",
+			"max(100)"
+		],
+		"description": [
+			"max(1000)",
+			"optional()"
+		],
+		"content": [
+			"min(10)",
+			"max(10000)",
+			"optional()"
+		],
+		"notes": [
+			"max(5000)",
+			"optional()"
+		],
+		"bio": [
+			"max(500)",
+			"optional()"
+		],
+		"status": [
+			"enum(['active', 'inactive', 'pending', 'archived'])"
+		],
+		"role": [
+			"enum(['admin', 'user', 'viewer'])"
+		],
+		"priority": [
+			"enum(['low', 'medium', 'high', 'urgent'])"
+		],
+		"is_active": [
+			"boolean()"
+		],
+		"is_public": [
+			"boolean()"
+		],
+		"is_verified": [
+			"boolean()"
+		],
+		"is_deleted": [
+			"boolean()"
+		],
+		"count": [
+			"int()",
+			"min(0)"
+		],
+		"amount": [
+			"number()",
+			"min(0)"
+		],
+		"price": [
+			"number()",
+			"min(0)"
+		],
+		"rating": [
+			"number()",
+			"min(0)",
+			"max(5)"
+		],
+		"tags": [
+			"array(z.string())",
+			"optional()"
+		],
+		"metadata": [
+			"record(z.unknown())",
+			"optional()"
+		],
+		"config": [
+			"record(z.unknown())",
+			"optional()"
+		]
+	},
+	"tableMappings": {
+		"test_notes": {
+			"title": [
+				"min(1)",
+				"max(200)"
+			],
+			"description": [
+				"max(2000)",
+				"optional()"
+			]
+		},
+		"tasks": {
+			"title": [
+				"min(1)",
+				"max(150)"
+			],
+			"description": [
+				"max(1000)",
+				"optional()"
+			],
+			"status": [
+				"enum(['todo', 'in_progress', 'done'])"
+			],
+			"priority": [
+				"enum(['low', 'medium', 'high', 'urgent'])"
+			],
+			"due_date": [
+				"datetime()",
+				"optional()"
+			]
+		},
+		"projects": {
+			"name": [
+				"min(1)",
+				"max(100)"
+			],
+			"description": [
+				"max(2000)",
+				"optional()"
+			],
+			"status": [
+				"enum(['active', 'paused', 'completed', 'archived'])"
+			]
+		}
+	}
+}

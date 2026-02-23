@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "gen-types": "node -r dotenv/config src/scripts/gen-types.js",
+    "gen-schemas": "node -r dotenv/config src/scripts/gen-schemas.js",
+    "gen-all": "npm run gen-types && npm run gen-schemas"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
