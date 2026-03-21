@@ -117,7 +117,7 @@ function unsubscribeFromEntity(channelKey: string) {
 export function unsubscribeFromAll() {
 	console.log('[Realtime] Unsubscribing from all channels')
 	const supabase = getSupabaseClient()
-	activeChannels.forEach((channel, key) => {
+	activeChannels.forEach((channel) => {
 		supabase.removeChannel(channel)
 	})
 	activeChannels.clear()
