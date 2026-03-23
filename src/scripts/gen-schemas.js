@@ -27,7 +27,7 @@ const path = require('path');
 
 const TYPES_FILE = path.join(__dirname, '../generated/types/database.ts');
 const CONFIG_FILE = path.join(__dirname, '../lib/validators/config.json');
-const OUTPUT_DIR = path.join(__dirname, '../src/lib/schemas');
+const OUTPUT_DIR = path.join(__dirname, '../generated/schemas');
 
 // ============================================================================
 // HELPERS
