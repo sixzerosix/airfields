@@ -41,7 +41,7 @@ const UpdateEntitySchema = z.object({
 		{ message: 'Invalid entity type' }
 	) as z.ZodType<EntityType>,
 
-	entityId: z.string().uuid({
+	entityId: z.uuid({
 		message: 'Invalid entity ID format'
 	}),
 
@@ -92,8 +92,7 @@ export const updateEntityAction = actionClient
 		const { data, error } = await supabase
 			.from(entity)
 			.update({
-				[field]: value,
-				updated_at: new Date().toISOString(),
+				[field]: value
 			})
 			.eq('id', entityId)
 			.select()
@@ -134,7 +133,7 @@ export const updateEntityAction = actionClient
  */
 const BatchUpdateSchema = z.object({
 	entity: z.string() as z.ZodType<EntityType>,
-	entityId: z.string().uuid(),
+	entityId: z.uuid(),
 	updates: z.record(z.string(), z.any()), // ← FIX: 2 аргумента
 })
 
@@ -190,7 +189,7 @@ export const batchUpdateEntityAction = actionClient
 
 const DeleteEntitySchema = z.object({
 	entity: z.string() as z.ZodType<EntityType>,
-	entityId: z.string().uuid(),
+	entityId: z.uuid(),
 })
 
 /**
@@ -231,7 +230,7 @@ const CreateEntitySchema = z.object({
  * Create Entity Action
  */
 export const createEntityAction = actionClient
-	.schema(CreateEntitySchema)
+	.inputSchema(CreateEntitySchema)
 	.action(async ({ parsedInput: { entity, data } }) => {
 		const supabase = await createServerSupabaseClient()
 

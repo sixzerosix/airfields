@@ -3,7 +3,7 @@
 import React from "react";
 import { EntityType, EntityDataMap } from "@/lib/schemas";
 import { getFieldConfig } from "@/lib/registry";
-import { EditableText } from "./components/fields/EditableText";
+import { EditableText } from "./fields/EditableText";
 
 // ============================================================================
 // TYPES
