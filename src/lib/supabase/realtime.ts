@@ -192,6 +192,7 @@ function handleUpdate<E extends EntityType>(
 		return
 	}
 
+	// const existingRecord = store.entities[entity]?.[(record as any).id]
 	const existingRecord = entityMap[(record as any).id]
 
 	if (!existingRecord) {

@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react";
 import { EntityType, EntityDataMap } from "@/lib/schemas";
 import { getFieldConfig } from "@/lib/registry";
-import { EditableText } from "./fields/EditableText";
+import { EditableText } from "../fields/EditableText";
+import { useStore, selectEntity } from "@/lib/store";
 
 // ============================================================================
 // TYPES
@@ -26,13 +26,15 @@ interface EntityFieldProps<E extends EntityType> {
 	name: keyof EntityDataMap[E];
 
 	/**
-	 * Текущее значение поля
+	 * Текущее значение поля (опционально!)
+	 * Если не передано — берётся из Store автоматически.
+	 * Если передано — используется только как fallback,
+	 * Store-значение всегда приоритетнее.
 	 */
 	value?: any;
 
 	/**
 	 * Кастомные props (переопределяют конфиг из registry)
-	 * Это позволяет гибко настраивать поля
 	 */
 	customProps?: Record<string, any>;
 
@@ -46,25 +48,6 @@ interface EntityFieldProps<E extends EntityType> {
 // COMPONENT
 // ============================================================================
 
-/**
- * EntityField - умный компонент который автоматически рендерит поле
- * на основе конфигурации из Entity Registry
- *
- * РЕЖИМЫ ИСПОЛЬЗОВАНИЯ:
- *
- * 1. AUTO MODE (из registry):
- *    <EntityField entity="tasks" entityId={id} name="title" value={task.title} />
- *
- * 2. CUSTOM MODE (переопределение):
- *    <EntityField
- *      entity="tasks"
- *      name="title"
- *      customProps={{ className: "bg-yellow-50", saveMode: "manual" }}
- *    />
- *
- * 3. FALLBACK (если нет в registry):
- *    Автоматически рендерит EditableText
- */
 export function EntityField<E extends EntityType>({
 	entity,
 	entityId,
@@ -73,6 +56,27 @@ export function EntityField<E extends EntityType>({
 	customProps = {},
 	className,
 }: EntityFieldProps<E>) {
+	// ========================================================================
+	// ✅ ЧИТАЕМ VALUE ИЗ STORE (реактивно!)
+	// ========================================================================
+	//
+	// Это ключевой фикс. Раньше value приходил только через prop,
+	// и если prop был "запечатан" из Server Component — UI не обновлялся.
+	//
+	// Теперь EntityField сам подписывается на Store через useStore.
+	// При любом изменении в Store — компонент ре-рендерится.
+	//
+	// Приоритет: Store value > prop value > undefined
+	// ========================================================================
+
+	const storeValue = useStore(
+		(state) => selectEntity(state, entity, entityId)?.[name as string],
+	);
+
+	// Store всегда приоритетнее — там актуальные данные
+	// prop value используется только как начальный fallback
+	const currentValue = storeValue ?? value;
+
 	// ========================================================================
 	// ПОЛУЧИТЬ КОНФИГУРАЦИЮ ИЗ REGISTRY
 	// ========================================================================
@@ -94,7 +98,7 @@ export function EntityField<E extends EntityType>({
 					entity={entity}
 					entityId={entityId}
 					field={name}
-					value={value}
+					value={currentValue}
 					label={String(name)}
 					{...customProps}
 				/>
@@ -115,18 +119,17 @@ export function EntityField<E extends EntityType>({
 		debounceMs,
 	} = config;
 
-	// Объединяем props: registry + custom (custom приоритетнее!)
 	const mergedProps = {
 		entity,
 		entityId,
 		field: name,
-		value,
+		value: currentValue, // ← Store value, не prop!
 		label,
 		placeholder,
 		saveMode,
 		debounceMs,
 		...defaultProps,
-		...customProps, // ← customProps переопределяют всё!
+		...customProps,
 	};
 
 	return (

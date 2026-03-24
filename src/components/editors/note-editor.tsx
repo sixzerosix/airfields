@@ -11,7 +11,7 @@
  * - Локальным состоянием
  * - UI обновлениями
  */
-import { EntityField } from "@/components/EntityField";
+import { EntityField } from "@/components/entity/EntityField";
 import { useEffect, useRef } from "react";
 import { useStore, selectEntity } from "@/lib/store";
 import { subscribeToEntity } from "@/lib/supabase/realtime";
@@ -85,10 +85,8 @@ export function NoteEditor({ initialData, noteId }: NoteEditorProps) {
 	// ========================================================================
 
 	return (
-		<div className="max-w-5xl mx-auto grid gap-2">
-			<div className="">
-				<div className="text-xl">{note?.title}</div>
-				<div className="text-muted-foreground">{note?.description}</div>
+		<div className="max-w-5xl mx-auto">
+			<div className=" grid gap-3">
 				<EntityField
 					entity="notes"
 					entityId={note.id}

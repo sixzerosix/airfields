@@ -15,7 +15,7 @@
 import { useEffect, useRef } from "react";
 import { useStore, selectEntity } from "@/lib/store";
 import { subscribeToEntity } from "@/lib/supabase/realtime";
-import { EntityField } from "@/components/EntityField";
+import { EntityField } from "@/components/entity/EntityField";
 import { Card } from "@/components/ui/card";
 import { ManyToManyTags } from "@/components/fields/ManyToManyTags";
 
