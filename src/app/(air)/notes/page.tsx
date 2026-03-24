@@ -41,7 +41,7 @@ export default async function PageNotes() {
 	return (
 		<div className="max-w-5xl mx-auto grid gap-2">
 			{notes.map((note) => (
-				<div key={note.id} className="p-3 border rounded-xl">
+				<div key={note.id} className="px-3 py-2 border rounded-xl">
 					<Link className="grid" href={`notes/${note.id}`}>
 						<div className="text-lg">{note.title}</div>
 						<div className="text-sm text-muted-foreground">

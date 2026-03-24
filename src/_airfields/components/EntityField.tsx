@@ -1,9 +1,8 @@
 "use client";
 
-import React from "react";
 import { EntityType, EntityDataMap } from "@/lib/schemas";
 import { getFieldConfig } from "@/lib/registry";
-import { EditableText } from "./fields/EditableText";
+import { EditableText } from "./fields/v1/EditableText";
 
 // ============================================================================
 // TYPES

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createServerSupabaseClient } from "@/_airfields/lib/supabase/server";
+import { NoteEditor } from "@/components/editors/note-editor";
 
 interface PageProps {
 	params: Promise<{
@@ -45,12 +46,5 @@ export default async function PageNote({ params }: PageProps) {
 			</div>
 		);
 	}
-	return (
-		<div className="max-w-5xl mx-auto grid gap-2">
-			<div className="">
-				<div className="text-xl">{note?.title}</div>
-				<div className="text-muted-foreground">{note?.description}</div>
-			</div>
-		</div>
-	);
+	return <NoteEditor initialData={note} noteId={id} />;
 }

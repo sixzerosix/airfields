@@ -95,6 +95,26 @@ const STATUS_OPTIONS = [
 // ============================================================================
 
 export const EntityRegistry: Registry = {
+	notes: {
+		fields: {
+			title: {
+				component: EditableText,
+				label: "Заголовок",
+				placeholder: "Введите заголовок заметки...",
+				saveMode: "auto",
+				debounceMs: 500,
+			},
+			description: {
+				component: EditableTextarea,
+				label: "Описание",
+				placeholder: "Напишите подробное описание...",
+				saveMode: "auto",
+				debounceMs: 800,
+				props: { rows: 8 },
+			},
+		},
+	},
+
 	// ==========================================================================
 	// TASKS
 	// ==========================================================================

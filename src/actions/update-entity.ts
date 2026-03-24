@@ -37,7 +37,7 @@ import { EntityType, EntityDataMap, getFieldSchema } from '@/lib/schemas'
  */
 const UpdateEntitySchema = z.object({
 	entity: z.string().refine(
-		(val) => ['tasks', 'projects'].includes(val),
+		(val) => ['notes', 'tasks', 'projects'].includes(val),
 		{ message: 'Invalid entity type' }
 	) as z.ZodType<EntityType>,
 
@@ -75,12 +75,17 @@ export const updateEntityAction = actionClient
 		// 1. ДОПОЛНИТЕЛЬНАЯ ВАЛИДАЦИЯ (по типу поля)
 		// ========================================================================
 
-		try {
-			const fieldSchema = getFieldSchema(entity as any, field as any)
-			fieldSchema.parse(value)
-		} catch (error) {
-			console.error('[updateEntityAction] Validation failed:', error)
-			throw new Error(`Validation failed for field ${field}`)
+		const fieldSchema = getFieldSchema(entity, field);
+
+		const validationResult = fieldSchema.safeParse(value);
+
+		if (!validationResult.success) {
+			const errorMessage = validationResult.error.issues[0]?.message || 'Validation failed';
+
+			console.error(`[updateEntityAction] Validation failed: ${entity}.${field} -> ${errorMessage}`);
+
+			// Это позволит увидеть ошибку на клиенте
+			throw new Error(errorMessage);
 		}
 
 		// ========================================================================
