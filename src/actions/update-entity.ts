@@ -236,7 +236,7 @@ const CreateEntitySchema = z.object({
  * Create Entity Action
  */
 export const createEntityAction = actionClient
-	.schema(CreateEntitySchema)
+	.inputSchema(CreateEntitySchema)
 	.action(async ({ parsedInput: { entity, data } }) => {
 		const supabase = await createServerSupabaseClient()
 

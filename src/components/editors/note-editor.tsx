@@ -102,6 +102,13 @@ export function NoteEditor({ initialData, noteId }: NoteEditorProps) {
 					name="description"
 					value={note?.description}
 				/>
+
+				<EntityField
+					entity="notes"
+					entityId={note.id}
+					name="status"
+					value={note?.status}
+				/>
 			</div>
 		</div>
 	);

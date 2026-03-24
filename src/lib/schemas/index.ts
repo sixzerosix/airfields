@@ -15,6 +15,7 @@ export type EntityDataMap = {
 		id: string
 		title: string
 		description: string | null
+		status: 'todo' | 'in_progress' | 'review' | 'done' | 'archived'
 		created_at: string
 		updated_at: string
 	}
@@ -45,6 +46,7 @@ export const FieldSchemas = {
 	notes: {
 		title: z.string().min(1, 'Заголовок обязателен').max(200),
 		description: z.string().max(5000, 'Слишком длинное описание').nullable().optional(),
+		status: z.enum(['todo', 'in_progress', 'review', 'done', 'archived'])
 	},
 	tasks: {
 		title: z.string().min(1, 'Title is required').max(200),

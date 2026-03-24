@@ -90,6 +90,14 @@ const STATUS_OPTIONS = [
 	{ value: "done", label: "Done" },
 ];
 
+const STATUS_NOTE_OPTIONS = [
+	{ value: "todo", label: "Активный" },
+	{ value: "in_progress", label: "В процессе" },
+	{ value: "review", label: "Аудит" },
+	{ value: "done", label: "Выполнено" },
+	{ value: "archived", label: "В архиве" },
+];
+
 // ============================================================================
 // REGISTRY
 // ============================================================================
@@ -111,6 +119,14 @@ export const EntityRegistry: Registry = {
 				saveMode: "auto",
 				debounceMs: 800,
 				props: { rows: 8 },
+			},
+			status: {
+				component: EditableSelect,
+				label: "Состояние",
+				saveMode: "auto",
+				props: {
+					options: STATUS_NOTE_OPTIONS,
+				},
 			},
 		},
 	},
