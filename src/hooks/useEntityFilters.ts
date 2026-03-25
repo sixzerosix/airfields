@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { useQueryState, parseAsString, parseAsStringEnum } from "nuqs";
 
 // ============================================================================
-// TYPES (без изменений)
+// TYPES
 // ============================================================================
 
 export type FilterOperator =
@@ -147,19 +147,12 @@ export function useEntityFilters(
 	);
 
 	// ==========================================================================
-	// ✅ FIX HYDRATION: filters в useState, парсятся в useEffect (не при SSR)
+	// FILTERS STATE — парсится из URL один раз при mount
 	// ==========================================================================
 
 	const [filters, setFiltersState] = useState<Record<string, FilterValue>>({});
 
-	// Парсим URL → state ТОЛЬКО на клиенте после mount
-	const [version, setVersion] = useState(0);
-
-	useEffect(() => {
-		setFiltersState(parseFiltersFromUrl(filterFields));
-	}, [version]); // re-parse when version bumps
-
-	// Начальный парсинг при mount
+	// ✅ Один useEffect, один раз при mount — без version хака
 	useEffect(() => {
 		setFiltersState(parseFiltersFromUrl(filterFields));
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,7 +166,6 @@ export function useEntityFilters(
 		(field: string, value: FilterValue | null, fieldConfig: FilterFieldConfig) => {
 			const url = new URL(window.location.href);
 
-			// Remove old params for this field
 			url.searchParams.delete(field);
 			url.searchParams.delete(`${field}_min`);
 			url.searchParams.delete(`${field}_max`);
@@ -199,7 +191,7 @@ export function useEntityFilters(
 	);
 
 	// ==========================================================================
-	// ACTIONS
+	// ACTIONS — ✅ никаких setSearchRaw((prev) => prev) хаков
 	// ==========================================================================
 
 	const setSearch = useCallback(
@@ -208,10 +200,14 @@ export function useEntityFilters(
 	);
 
 	const setSort = useCallback(
-		(s: SortConfig) => { setSortField(s.field); setSortDir(s.direction); },
+		(s: SortConfig) => {
+			setSortField(s.field);
+			setSortDir(s.direction);
+		},
 		[setSortField, setSortDir],
 	);
 
+	// ✅ setFilter обновляет URL + state напрямую. Без хаков.
 	const setFilter = useCallback(
 		(field: string, value: FilterValue | null) => {
 			const fc = filterFields.find((f) => f.field === field);
@@ -219,7 +215,6 @@ export function useEntityFilters(
 
 			updateFilterInUrl(field, value, fc);
 
-			// Update local state directly (no re-parse needed)
 			setFiltersState((prev) => {
 				const next = { ...prev };
 				if (value === null) {
@@ -233,6 +228,7 @@ export function useEntityFilters(
 		[filterFields, updateFilterInUrl],
 	);
 
+	// ✅ clearFilters — URL cleanup + setState. Без хаков.
 	const clearFilters = useCallback(() => {
 		const url = new URL(window.location.href);
 		for (const { field } of filterFields) {
@@ -246,6 +242,7 @@ export function useEntityFilters(
 		setFiltersState({});
 	}, [filterFields]);
 
+	// ✅ clearAll — nuqs для search/sort + clearFilters для остального
 	const clearAll = useCallback(() => {
 		setSearchRaw(null);
 		setSortField(null);
@@ -304,10 +301,19 @@ export function useEntityFilters(
 	);
 
 	return {
-		filters, sort: { field: sortField, direction: sortDir }, search,
-		setFilter, setSort, setSearch, clearFilters, clearAll,
-		applyTo, activeFilterCount, hasActiveFilters,
-		filterFields: enrichedFilterFields, sortFields,
+		filters,
+		sort: { field: sortField, direction: sortDir },
+		search,
+		setFilter,
+		setSort,
+		setSearch,
+		clearFilters,
+		clearAll,
+		applyTo,
+		activeFilterCount,
+		hasActiveFilters,
+		filterFields: enrichedFilterFields,
+		sortFields,
 	};
 }
 

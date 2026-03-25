@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { GripVertical, Pencil, Plus } from "lucide-react";
+import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { EntityList } from "@/components/entity/EntityList";
 import { EntityField } from "@/components/entity/EntityField";
 import { EntityEditor } from "@/components/entity/EntityEditor";
 import { CreateEntityDialog } from "@/components/entity/CreateEntityDialog";
@@ -19,7 +20,46 @@ import { STATUS_NOTE_OPTIONS } from "@/lib/registry";
 import { useEntityPagination } from "@/hooks/useEntityPagination";
 import { EntityPagination } from "@/components/entity/EntityPagination";
 import { useEntityReorder } from "@/hooks/useEntityReorder";
-import { EntityListSortable } from "@/components/entity/EntityListSortable";
+
+// export function NotesTable({ initialNotes }: { initialNotes: Note[] }) {
+// 	const notes = useEntityList("notes", initialNotes);
+
+// 	// Полная свобода в layout — хук не навязывает ничего
+// 	return (
+// 		<table className="w-full">
+// 			<thead>
+// 				<tr>
+// 					<th>Title</th>
+// 					<th>Status</th>
+// 					<th>Updated</th>
+// 				</tr>
+// 			</thead>
+// 			<tbody>
+// 				{notes.map((note) => (
+// 					<tr key={note.id}>
+// 						<td>{note.title}</td>
+// 						<td>
+// 							<EntityEditor
+// 								entity="notes"
+// 								entityId={note.id}
+// 								initialData={note}
+// 							>
+// 								<EntityField
+// 									entity="notes"
+// 									entityId={note.id}
+// 									name="status"
+// 								/>
+// 							</EntityEditor>
+// 						</td>
+// 						<td>
+// 							{new Date(note.updated_at).toLocaleDateString()}
+// 						</td>
+// 					</tr>
+// 				))}
+// 			</tbody>
+// 		</table>
+// 	);
+// }
 
 function SomeClientComponent() {
 	return (
@@ -37,6 +77,7 @@ function SomeClientComponent() {
 		>
 			{(tempId) => (
 				<>
+					{/* ✅ Просто EntityField — saveMode="manual" автоматически */}
 					<EntityField
 						entity="notes"
 						entityId={tempId}
@@ -53,10 +94,19 @@ function SomeClientComponent() {
 	);
 }
 
+// const STATUS_OPTIONS = [
+// 	{ value: "active", label: "Активный" },
+// 	{ value: "todo", label: "В очереди" },
+// 	{ value: "in_progress", label: "В процессе" },
+// 	{ value: "done", label: "Выполнено" },
+// 	{ value: "audit", label: "Аудит" },
+// ];
+
 export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
+	// ✅ ОДИН state для управления Dialog
 	const [editingId, setEditingId] = useState<string | null>(null);
 
-	// Фильтры
+	// ✅ Хук фильтрации
 	const filters = useEntityFilters({
 		filterFields: [
 			{
@@ -71,7 +121,10 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 				type: "select",
 				options: STATUS_NOTE_OPTIONS,
 			},
+			// Примеры других типов:
+			// { field: "priority", label: "Priority", type: "number" },
 			{ field: "created_at", label: "Created", type: "date" },
+			// { field: "is_archived", label: "Archived", type: "boolean" },
 		],
 		sortFields: [
 			{ field: "created_at", label: "Date Created" },
@@ -82,10 +135,20 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 		defaultSort: { field: "created_at", direction: "desc" },
 	});
 
+	// const pagination = useEntityPagination({
+	// 	mode: "loadMore",
+	// 	defaultPerPage: 4,
+	// });
+
+	// const pagination = useEntityPagination({
+	// 	mode: "infinite",
+	// 	defaultPerPage: 8,
+	// });
+
 	// Данные из Store + realtime
 	const rawItems = useEntityList("notes", initialNotes);
 
-	// Фильтры + сортировка
+	// ✅ Применяем фильтры + сортировку
 	const filteredItems = filters.applyTo(rawItems);
 
 	// Reorder
@@ -102,84 +165,60 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 		defaultPerPage: 5,
 		perPageOptions: [5, 10, 25, 50, 100],
 	});
+	const paginated = pagination.paginate(sortedItems);
 
-	// ✅ Drag ON → весь список без пагинации. Drag OFF → пагинация.
-	const paginated = reorder.enabled
-		? sortedItems
-		: pagination.paginate(sortedItems);
-
-	// ✅ Drag нельзя только с фильтрами/поиском (пагинация НЕ мешает)
-	const canDrag = !filters.hasActiveFilters;
+	// Drag нельзя с фильтрами/поиском
+	const canDrag = !filters.hasActiveFilters && pagination.totalPages <= 1;
 
 	return (
 		<div className="max-w-5xl mx-auto p-4 grid gap-3">
-			{/* Header */}
+			{/* ============================================ */}
+			{/* HEADER + CREATE BUTTON                       */}
+			{/* ============================================ */}
 			<div className="flex items-center justify-between mb-6">
 				<h1 className="text-2xl font-bold">Notes</h1>
 
-				<div className="flex items-center gap-2">
-					<Button
-						variant={reorder.enabled ? "default" : "outline"}
-						size="sm"
-						onClick={reorder.toggle}
-						disabled={!canDrag && !reorder.enabled}
-					>
-						<GripVertical className="w-4 h-4 mr-1" />
-						{reorder.enabled ? "Done" : "Reorder"}
-					</Button>
-
-					<SomeClientComponent />
-				</div>
+				<SomeClientComponent />
 			</div>
 
-			{/* Inline creation */}
-			{!reorder.enabled && (
-				<div>
-					<CreateEntityInline
-						entity="notes"
-						initialValues={{ status: "todo" }}
-						alwaysOpen={false}
-						autoClose={false}
-						submitText="Add Note"
-					>
-						{(tempId) => (
-							<div className="grid gap-3">
-								<EntityField
-									entity="notes"
-									entityId={tempId}
-									name="title"
-								/>
-								<EntityField
-									entity="notes"
-									entityId={tempId}
-									name="description"
-								/>
-							</div>
-						)}
-					</CreateEntityInline>
-				</div>
-			)}
+			<div>
+				{/* ✅ Inline creation — раскрывается над списком */}
+				<CreateEntityInline
+					entity="notes"
+					initialValues={{ status: "todo" }}
+					alwaysOpen={false}
+					autoClose={false}
+					submitText="Add Note"
+				>
+					{(tempId) => (
+						<div className="grid gap-3">
+							<EntityField
+								entity="notes"
+								entityId={tempId}
+								name="title"
+							/>
+							<EntityField
+								entity="notes"
+								entityId={tempId}
+								name="description"
+							/>
+						</div>
+					)}
+				</CreateEntityInline>
+			</div>
 
-			{/* Toolbar — скрываем когда drag ON */}
-			{!reorder.enabled && (
-				<EntityToolbar
-					{...filters}
-					searchPlaceholder="Search notes..."
-				/>
-			)}
+			{/* ✅ Toolbar с фильтрами и сортировкой */}
+			<EntityToolbar {...filters} searchPlaceholder="Search notes..." />
 
-			{reorder.enabled && (
-				<p className="text-sm text-muted-foreground">
-					Перетаскивайте элементы для изменения порядка
-				</p>
-			)}
-
-			{/* List */}
-			<EntityListSortable
+			{/* ============================================ */}
+			{/* LIST                                         */}
+			{/* ============================================ */}
+			{/* ✅ List с готовыми items (уже отфильтрованы и отсортированы) */}
+			<EntityList
 				entity="notes"
 				initialData={initialNotes}
 				items={paginated}
-				reorder={reorder}
+				// reorder={reorder}
 				className="grid gap-3"
 				empty={
 					filters.hasActiveFilters ? (
@@ -218,6 +257,7 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 								</div>
 							</Link>
 
+							{/* ✅ Только статус — редактируемый */}
 							<EntityField
 								entity="notes"
 								entityId={note.id}
@@ -226,36 +266,36 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 								className="min-w-[120px]"
 							/>
 
-							{!reorder.enabled && (
-								<>
-									<Button
-										variant="ghost"
-										size="icon"
-										onClick={() => setEditingId(note.id)}
-									>
-										<Pencil className="w-4 h-4" />
-									</Button>
-									<DeleteEntityButton
-										entity="notes"
-										entityId={note.id}
-										confirm={false}
-										size="icon"
-										variant="ghost"
-										label=""
-									/>
-								</>
-							)}
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => setEditingId(note.id)}
+							>
+								<Pencil className="w-4 h-4" />
+							</Button>
+							<DeleteEntityButton
+								entity="notes"
+								entityId={note.id}
+								confirm={false}
+								size="icon"
+								variant="ghost"
+								label=""
+							/>
 						</div>
 					</EntityEditor>
 				)}
-			</EntityListSortable>
+			</EntityList>
 
-			{/* Pagination — только когда drag OFF */}
-			{!reorder.enabled && (
-				<EntityPagination {...pagination} maxVisiblePages={4} />
-			)}
+			{/* ✅ Pagination — все элементы включены */}
+			<EntityPagination {...pagination} maxVisiblePages={4} />
 
-			{/* Edit Dialog */}
+			{/* ✅ Вариант: без Rows per page и info */}
+			{/* <EntityPagination {...pagination} showPerPage={false} showInfo={false} /> */}
+
+			{/* ✅ Вариант: только стрелки */}
+			{/* <EntityPagination {...pagination} showPageNumbers={false} showPerPage={false} showInfo={false} /> */}
+
+			{/* ✅ ОДИН Dialog на весь список — монтируется 1 раз */}
 			<EditEntityDialog
 				entity="notes"
 				entityId={editingId}
@@ -263,6 +303,7 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 				title="Edit Note"
 				footer={(id) => (
 					<div className="flex justify-between w-full">
+						{/* Delete — слева */}
 						<DeleteEntityButton
 							entity="notes"
 							entityId={id}
@@ -272,6 +313,8 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 							confirmDescription="This action cannot be undone."
 							onSuccess={() => setEditingId(null)}
 						/>
+
+						{/* Можно добавить другие кнопки справа */}
 						<Button
 							variant="ghost"
 							size="sm"
