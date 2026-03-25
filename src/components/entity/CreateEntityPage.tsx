@@ -10,7 +10,7 @@
  * Используй клиентский wrapper — см. пример ниже.
  */
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useStore } from "@/lib/store";
 import { DraftContext } from "@/contexts/DraftContext";
 import { useEntityDraft } from "@/hooks/useEntityDraft";
@@ -49,6 +49,9 @@ export function CreateEntityPage<E extends EntityType>({
 
 	const createdRef = useRef(false);
 
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => setMounted(true), []);
+
 	// Auto-create on first change
 	useEffect(() => {
 		if (createdRef.current) return;
@@ -80,7 +83,9 @@ export function CreateEntityPage<E extends EntityType>({
 
 	return (
 		<DraftContext.Provider value={true}>
-			<div className={className}>{children(tempId)}</div>
+			<div className={className}>
+				{mounted && <div key={tempId}>{children(tempId)}</div>}
+			</div>
 		</DraftContext.Provider>
 	);
 }
