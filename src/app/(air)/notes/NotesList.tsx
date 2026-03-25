@@ -167,9 +167,6 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 	});
 	const paginated = pagination.paginate(sortedItems);
 
-	// Drag нельзя с фильтрами/поиском
-	const canDrag = !filters.hasActiveFilters && pagination.totalPages <= 1;
-
 	return (
 		<div className="max-w-5xl mx-auto p-4 grid gap-3">
 			{/* ============================================ */}

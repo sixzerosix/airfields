@@ -247,11 +247,22 @@ export const createEntityAction = actionClient
 		}
 
 		// ✅ Подставляем user_id из сессии
+		// Если position не передан — ставим в конец списка
+		let position = data.position;
+		if (position == null) {
+			const { count } = await supabase
+				.from(entity)
+				.select("*", { count: "exact", head: true })
+				.eq("user_id", user.id);
+			position = count ?? 0;
+		}
+
 		const { data: records, error } = await supabase
 			.from(entity)
 			.insert({
 				...data,
 				user_id: user.id,
+				position,
 			})
 			.select("id");
 

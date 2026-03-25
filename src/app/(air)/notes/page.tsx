@@ -19,7 +19,7 @@ export default async function NotesPage() {
 	// Передаём ДАННЫЕ, не функцию!
 	return (
 		<>
-			<NotesList initialNotes={notes || []} />;
+			<NotesList initialNotes={notes || []} />
 			{/* <NotesTable initialNotes={notes || []} /> */}
 		</>
 	);
