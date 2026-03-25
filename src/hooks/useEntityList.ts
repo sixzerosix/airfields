@@ -4,46 +4,46 @@ import { useStore, selectAllEntities } from "@/lib/store";
 import { subscribeToEntity } from "@/lib/supabase/realtime";
 import type { EntityType, EntityDataMap } from "@/lib/schemas";
 
-/**
- * useEntityList - универсальный хук для работы со списками
- *
- * Управляет:
- * - Инициализацией Store
- * - Real-time подписками
- * - Получением актуальных данных
- *
- * Это ОСНОВА. EntityList компонент — просто обёртка над этим хуком.
- *
- * @example
- * ```tsx
- * // Полная свобода в рендере:
- * const notes = useEntityList("notes", initialNotes);
- *
- * return (
- *   <table>
- *     {notes.map(n => <tr key={n.id}><td>{n.title}</td></tr>)}
- *   </table>
- * );
- * ```
- */
+// ============================================================================
+// TYPES
+// ============================================================================
+
+interface UseEntityListOptions {
+	enableRealtime?: boolean;
+	filter?: { column: string; value: string };
+
+	/**
+	 * Сортировка списка.
+	 * @default { field: "updated_at", direction: "desc" }
+	 */
+	sort?: {
+		field: string;
+		direction: "asc" | "desc";
+	};
+}
+
+// ============================================================================
+// HOOK
+// ============================================================================
+
 export function useEntityList<E extends EntityType>(
 	entity: E,
 	initialData: EntityDataMap[E][],
-	options?: {
-		enableRealtime?: boolean;
-		filter?: { column: string; value: string };
-	},
+	options?: UseEntityListOptions,
 ): EntityDataMap[E][] {
-	const { enableRealtime = true, filter } = options || {};
+	const {
+		enableRealtime = true,
+		filter,
+		sort = { field: "updated_at", direction: "desc" },
+	} = options || {};
 
 	// ==========================================================================
-	// STORE INITIALIZATION (один раз)
+	// STORE INITIALIZATION
 	// ==========================================================================
 
 	const initialized = useRef(false);
 
 	useEffect(() => {
-		// Защита от повторной инициализации при изменении ссылки на массив
 		if (initialized.current) return;
 		initialized.current = true;
 
@@ -54,7 +54,7 @@ export function useEntityList<E extends EntityType>(
 				store.upsertEntity(entity, id, item);
 			}
 		});
-	}, [entity]); // ← только entity, НЕ initialData (ссылка меняется каждый рендер)
+	}, [entity]);
 
 	// ==========================================================================
 	// REAL-TIME SUBSCRIPTION
@@ -71,11 +71,28 @@ export function useEntityList<E extends EntityType>(
 	}, [entity, enableRealtime, filter?.column, filter?.value]);
 
 	// ==========================================================================
-	// GET FROM STORE (реактивно)
+	// GET FROM STORE (sorted)
 	// ==========================================================================
 
 	const items = useStore(
-		useShallow((state) => selectAllEntities(state, entity)),
+		useShallow((state) => {
+			const all = selectAllEntities(state, entity);
+
+			// ✅ Сортировка
+			if (!sort) return all;
+
+			return [...all].sort((a, b) => {
+				const aVal = (a as any)[sort.field];
+				const bVal = (b as any)[sort.field];
+
+				if (aVal == null && bVal == null) return 0;
+				if (aVal == null) return sort.direction === "desc" ? 1 : -1;
+				if (bVal == null) return sort.direction === "desc" ? -1 : 1;
+
+				const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+				return sort.direction === "desc" ? -comparison : comparison;
+			});
+		}),
 	);
 
 	return items;

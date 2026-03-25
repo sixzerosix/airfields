@@ -12,6 +12,7 @@ import type { Note } from "@/lib/schemas";
 import { EditEntityDialog } from "@/components/entity/EditEntityDialog";
 import { useState } from "react";
 import { DeleteEntityButton } from "@/components/entity/DeleteEntityButton";
+import { CreateEntityInline } from "@/components/entity/CreateEntityInline";
 
 // import { useEntityList } from "@/hooks/useEntityList";
 
@@ -89,8 +90,6 @@ function SomeClientComponent() {
 }
 
 export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
-	const router = useRouter();
-
 	// ✅ ОДИН state для управления Dialog
 	const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -104,6 +103,28 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 
 				<SomeClientComponent />
 			</div>
+			{/* ✅ Inline creation — раскрывается над списком */}
+			<CreateEntityInline
+				entity="notes"
+				initialValues={{ status: "todo" }}
+				alwaysOpen={true}
+				submitText="Add Note"
+			>
+				{(tempId) => (
+					<div className="grid gap-3">
+						<EntityField
+							entity="notes"
+							entityId={tempId}
+							name="title"
+						/>
+						<EntityField
+							entity="notes"
+							entityId={tempId}
+							name="description"
+						/>
+					</div>
+				)}
+			</CreateEntityInline>
 
 			{/* ============================================ */}
 			{/* LIST                                         */}
