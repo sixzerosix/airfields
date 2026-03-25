@@ -13,6 +13,7 @@ export type EntityType = typeof SUPPORTED_ENTITIES[number]
 export type EntityDataMap = {
 	notes: {
 		id: string
+		position: number,
 		title: string
 		description: string | null
 		status: 'todo' | 'in_progress' | 'review' | 'done' | 'archived'
@@ -44,6 +45,7 @@ export type EntityDataMap = {
 // ======================
 export const FieldSchemas = {
 	notes: {
+		position: z.number().int().min(0).optional(),
 		title: z.string().min(1, 'Заголовок обязателен').max(200),
 		description: z.string().max(5000, 'Слишком длинное описание').nullable().optional(),
 		status: z.enum(['todo', 'in_progress', 'review', 'done', 'archived'])

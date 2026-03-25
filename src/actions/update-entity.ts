@@ -270,3 +270,62 @@ export const createEntityAction = actionClient
 
 		return { id };
 	});
+
+// ============================================================================
+// ДОБАВЬ В update-entity.ts
+// ============================================================================
+
+// Schema
+const ReorderEntitiesSchema = z.object({
+	entity: z.string() as z.ZodType<EntityType>,
+	updates: z.array(
+		z.object({
+			id: z.string().uuid(),
+			position: z.number().int().min(0),
+		}),
+	),
+});
+
+/**
+ * Reorder Entities Action
+ *
+ * Batch-обновление positions для drag-and-drop.
+ * Один запрос на все изменения — атомарно.
+ */
+export const reorderEntitiesAction = actionClient
+	.inputSchema(ReorderEntitiesSchema)
+	.action(async ({ parsedInput: { entity, updates } }) => {
+		const supabase = await createServerSupabaseClient();
+
+		const { data: { user } } = await supabase.auth.getUser();
+		if (!user) throw new Error("Not authenticated");
+
+		// Batch update через Promise.all
+		// Supabase не поддерживает multi-row update в одном запросе,
+		// поэтому параллельные запросы — это стандартный подход.
+		const results = await Promise.all(
+			updates.map(({ id, position }) =>
+				supabase
+					.from(entity)
+					.update({
+						position,
+						updated_at: new Date().toISOString(),
+					})
+					.eq("id", id)
+					.eq("user_id", user.id) // RLS double-check
+			),
+		);
+
+		// Проверяем ошибки
+		const errors = results.filter((r) => r.error);
+		if (errors.length > 0) {
+			console.error("[reorderEntitiesAction] Errors:", errors.map((e) => e.error));
+			throw new Error(`Failed to update ${errors.length} items`);
+		}
+
+		revalidatePath(`/${entity}`);
+
+		return {
+			updated: updates.length,
+		};
+	});
