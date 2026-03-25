@@ -238,27 +238,35 @@ const CreateEntitySchema = z.object({
 export const createEntityAction = actionClient
 	.inputSchema(CreateEntitySchema)
 	.action(async ({ parsedInput: { entity, data } }) => {
-		const supabase = await createServerSupabaseClient()
+		const supabase = await createServerSupabaseClient();
 
-		const { data: record, error } = await supabase
+		// ✅ Получаем user_id на сервере — клиент не может подменить
+		const { data: { user } } = await supabase.auth.getUser();
+		if (!user) {
+			throw new Error("Not authenticated");
+		}
+
+		// ✅ Подставляем user_id из сессии
+		const { data: records, error } = await supabase
 			.from(entity)
-			.insert(data)
-			.select('id') // Явно запрашиваем только ID
-			.single()
+			.insert({
+				...data,
+				user_id: user.id,
+			})
+			.select("id");
 
 		if (error) {
-			console.error("Supabase Error:", error)
-			throw new Error(error.message)
+			console.error("[createEntityAction] Supabase Error:", error);
+			throw new Error(error.message);
 		}
 
-		// Если записи нет (часто из-за RLS), кидаем ошибку
-		if (!record) {
-			console.error("RLS Issue: Record created but not returned")
-			throw new Error("Record created but server could not retrieve ID. Check RLS policies.")
+		const id = records?.[0]?.id ?? data.id;
+
+		if (!id) {
+			throw new Error("Created but could not retrieve ID");
 		}
 
-		revalidatePath(`/${entity}`)
+		revalidatePath(`/${entity}`);
 
-		// Возвращаем объект с ID
-		return { id: record.id }
-	})
+		return { id };
+	});

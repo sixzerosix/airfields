@@ -1,34 +1,14 @@
 "use client";
 
 /**
- * CreateEntityDialog - Modal for Creating Entities
+ * CreateEntityDialog — модалка для создания записей
  *
- * ИСПРАВЛЕНИЯ:
- * 1. children — render prop (tempId) => ReactNode, чтобы дочерние EntityField
- *    получали правильный entityId
- * 2. Новый tempId при каждом открытии (а не один на весь lifecycle)
- * 3. Cleanup при закрытии без сохранения
- * 4. Store init для temp записи при открытии
- *
- * USAGE:
- * ```tsx
- * <CreateEntityDialog
- *   entity="notes"
- *   trigger={<Button>New Note</Button>}
- *   onSuccess={(id) => router.push(`/notes/${id}`)}
- * >
- *   {(tempId) => (
- *     <>
- *       <EntityField entity="notes" entityId={tempId} name="title" />
- *       <EntityField entity="notes" entityId={tempId} name="description" />
- *     </>
- *   )}
- * </CreateEntityDialog>
- * ```
+ * ✅ Оборачивает children в DraftContext.Provider
+ *    → все EntityField внутри автоматически saveMode="manual"
+ *    → не нужно помнить про customProps
  */
 
-import { useState, useRef, useCallback, type ReactNode } from "react";
-import { v4 as uuidv4 } from "uuid";
+import { useState, type ReactNode } from "react";
 import {
 	Dialog,
 	DialogContent,
@@ -39,50 +19,24 @@ import {
 	DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useStore } from "@/lib/store";
-import { createEntityAction } from "@/actions/update-entity";
+import { DraftContext } from "@/contexts/DraftContext";
+import { useEntityDraft } from "@/hooks/useEntityDraft";
 import type { EntityType, EntityDataMap } from "@/lib/schemas";
-import { toast } from "sonner";
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface CreateEntityDialogProps<E extends EntityType> {
-	/** Тип сущности */
 	entity: E;
-
-	/** Trigger button */
 	trigger: ReactNode;
-
-	/**
-	 * ✅ Render prop — получает tempId для передачи в EntityField
-	 *
-	 * Почему render prop, а не ReactNode?
-	 * tempId генерируется ВНУТРИ Dialog. Обычные children
-	 * создаются СНАРУЖИ и не имеют к нему доступа.
-	 */
 	children: (tempId: string) => ReactNode;
-
-	/** Dialog title */
 	title?: string;
-
-	/** Dialog description */
 	description?: string;
-
-	/** Начальные значения полей */
 	initialValues?: Partial<EntityDataMap[E]>;
-
-	/** Callback после успешного создания */
 	onSuccess?: (id: string) => void;
-
-	/** Callback при ошибке */
 	onError?: (error: string) => void;
-
-	/** Submit button text */
 	submitText?: string;
-
-	/** Cancel button text */
 	cancelText?: string;
 }
 
@@ -96,94 +50,29 @@ export function CreateEntityDialog<E extends EntityType>({
 	children,
 	title,
 	description,
-	initialValues = {},
+	initialValues,
 	onSuccess,
 	onError,
 	submitText = "Create",
 	cancelText = "Cancel",
 }: CreateEntityDialogProps<E>) {
 	const [open, setOpen] = useState(false);
-	const [loading, setLoading] = useState(false);
 
-	// ✅ Новый tempId при каждом ОТКРЫТИИ модалки
-	const tempIdRef = useRef<string>("");
-
-	// ==========================================================================
-	// OPEN / CLOSE
-	// ==========================================================================
-
-	const handleOpenChange = useCallback(
-		(nextOpen: boolean) => {
-			if (nextOpen) {
-				// Открытие: генерируем новый tempId, создаём temp запись в Store
-				tempIdRef.current = uuidv4();
-				useStore.getState().upsertEntity(entity, tempIdRef.current, {
-					id: tempIdRef.current,
-					...initialValues,
-				} as EntityDataMap[E]);
-			} else if (!loading) {
-				// Закрытие без сохранения: чистим Store
-				if (tempIdRef.current) {
-					useStore.getState().deleteEntity(entity, tempIdRef.current);
-				}
-			}
-			setOpen(nextOpen);
-		},
-		[entity, initialValues, loading],
-	);
-
-	// ==========================================================================
-	// CREATE
-	// ==========================================================================
-
-	const handleCreate = async () => {
-		const tempId = tempIdRef.current;
-		if (!tempId) return;
-
-		setLoading(true);
-
-		try {
-			const store = useStore.getState();
-			const data = store.entities[entity]?.[tempId];
-
-			if (!data) {
-				throw new Error("No data to save");
-			}
-
-			const result = await createEntityAction({
-				entity,
-				data: {
-					...initialValues,
-					...data,
-					id: tempId,
-				},
-			});
-
-			if (!result?.data) {
-				throw new Error("Failed to create");
-			}
-
-			toast.success("Created!");
+	const { tempId, create, reset, isCreating } = useEntityDraft(entity, {
+		initialValues,
+		onSuccess: (id) => {
 			setOpen(false);
+			onSuccess?.(id);
+		},
+		onError,
+	});
 
-			// НЕ удаляем из Store — запись теперь реальная
-			onSuccess?.(tempId);
-		} catch (error: any) {
-			console.error("[CreateEntityDialog] Error:", error);
-			toast.error(error.message || "Failed to create");
-			onError?.(error.message);
-		} finally {
-			setLoading(false);
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (!nextOpen && !isCreating) {
+			reset();
 		}
+		setOpen(nextOpen);
 	};
-
-	const handleCancel = () => {
-		handleOpenChange(false);
-	};
-
-	// ==========================================================================
-	// RENDER
-	// ==========================================================================
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
@@ -197,26 +86,28 @@ export function CreateEntityDialog<E extends EntityType>({
 					)}
 				</DialogHeader>
 
-				<div className="space-y-4 py-4">
-					{/* ✅ Render prop — tempId доступен дочерним EntityField */}
-					{open && tempIdRef.current && children(tempIdRef.current)}
-				</div>
+				{/* ✅ DraftContext → все EntityField внутри = saveMode="manual" */}
+				<DraftContext.Provider value={true}>
+					<div className="space-y-4 py-4">
+						{open && children(tempId)}
+					</div>
+				</DraftContext.Provider>
 
 				<DialogFooter>
 					<Button
 						type="button"
 						variant="outline"
-						onClick={handleCancel}
-						disabled={loading}
+						onClick={() => handleOpenChange(false)}
+						disabled={isCreating}
 					>
 						{cancelText}
 					</Button>
 					<Button
 						type="button"
-						onClick={handleCreate}
-						disabled={loading}
+						onClick={create}
+						disabled={isCreating}
 					>
-						{loading ? "Creating..." : submitText}
+						{isCreating ? "Creating..." : submitText}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

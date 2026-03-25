@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { EntityList } from "@/components/entity/EntityList";
 import { EntityField } from "@/components/entity/EntityField";
 import { EntityEditor } from "@/components/entity/EntityEditor";
@@ -11,6 +11,7 @@ import { CreateEntityDialog } from "@/components/entity/CreateEntityDialog";
 import type { Note } from "@/lib/schemas";
 import { EditEntityDialog } from "@/components/entity/EditEntityDialog";
 import { useState } from "react";
+import { DeleteEntityButton } from "@/components/entity/DeleteEntityButton";
 
 // import { useEntityList } from "@/hooks/useEntityList";
 
@@ -54,6 +55,39 @@ import { useState } from "react";
 // 	);
 // }
 
+function SomeClientComponent() {
+	return (
+		<CreateEntityDialog
+			entity="notes"
+			trigger={
+				<Button>
+					<Plus className="w-4 h-4 mr-2" />
+					New Note
+				</Button>
+			}
+			title="Create Note"
+			initialValues={{ status: "todo" }}
+			onSuccess={(id) => console.log("Created:", id)}
+		>
+			{(tempId) => (
+				<>
+					{/* ✅ Просто EntityField — saveMode="manual" автоматически */}
+					<EntityField
+						entity="notes"
+						entityId={tempId}
+						name="title"
+					/>
+					<EntityField
+						entity="notes"
+						entityId={tempId}
+						name="description"
+					/>
+				</>
+			)}
+		</CreateEntityDialog>
+	);
+}
+
 export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 	const router = useRouter();
 
@@ -68,34 +102,7 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 			<div className="flex items-center justify-between mb-6">
 				<h1 className="text-2xl font-bold">Notes</h1>
 
-				{/* ✅ CreateEntityDialog — кнопка + модалка */}
-				<CreateEntityDialog
-					entity="notes"
-					trigger={
-						<Button>
-							<Plus className="w-4 h-4 mr-2" />
-							New Note
-						</Button>
-					}
-					title="Create Note"
-					onSuccess={(id) => router.push(`/notes/${id}`)}
-				>
-					{/* ✅ Render prop — tempId доступен! */}
-					{(tempId) => (
-						<>
-							<EntityField
-								entity="notes"
-								entityId={tempId}
-								name="title"
-							/>
-							<EntityField
-								entity="notes"
-								entityId={tempId}
-								name="description"
-							/>
-						</>
-					)}
-				</CreateEntityDialog>
+				<SomeClientComponent />
 			</div>
 
 			{/* ============================================ */}
@@ -117,8 +124,8 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 						entityId={note.id}
 						initialData={note}
 					>
-						<div className="flex items-center justify-between p-4 border rounded-xl">
-							<Link href={`/notes/${note.id}`}>
+						<div className="flex items-center justify-between p-4 border rounded-xl gap-3">
+							<Link href={`/notes/${note.id}`} className="flex-1">
 								<span className="font-medium">
 									{note.title}
 								</span>
@@ -143,6 +150,14 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 							>
 								<Pencil className="w-4 h-4" />
 							</Button>
+							<DeleteEntityButton
+								entity="notes"
+								entityId={note.id}
+								confirm={false}
+								size="icon"
+								variant="ghost"
+								label=""
+							/>
 						</div>
 					</EntityEditor>
 				)}
@@ -154,6 +169,29 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 				entityId={editingId}
 				onClose={() => setEditingId(null)}
 				title="Edit Note"
+				footer={(id) => (
+					<div className="flex justify-between w-full">
+						{/* Delete — слева */}
+						<DeleteEntityButton
+							entity="notes"
+							entityId={id}
+							variant="outline"
+							size="sm"
+							confirmTitle="Delete this note?"
+							confirmDescription="This action cannot be undone."
+							onSuccess={() => setEditingId(null)}
+						/>
+
+						{/* Можно добавить другие кнопки справа */}
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => setEditingId(null)}
+						>
+							Close
+						</Button>
+					</div>
+				)}
 			>
 				{(id) => (
 					<>

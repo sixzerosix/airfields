@@ -1,46 +1,22 @@
 "use client";
 
+import React from "react";
 import { EntityType, EntityDataMap } from "@/lib/schemas";
 import { getFieldConfig } from "@/lib/registry";
 import { EditableText } from "../fields/EditableText";
 import { useStore, selectEntity } from "@/lib/store";
+import { useIsDraft } from "@/contexts/DraftContext";
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface EntityFieldProps<E extends EntityType> {
-	/**
-	 * Тип сущности (tasks, projects, etc)
-	 */
 	entity: E;
-
-	/**
-	 * ID сущности
-	 */
 	entityId: string;
-
-	/**
-	 * Имя поля
-	 */
 	name: keyof EntityDataMap[E];
-
-	/**
-	 * Текущее значение поля (опционально!)
-	 * Если не передано — берётся из Store автоматически.
-	 * Если передано — используется только как fallback,
-	 * Store-значение всегда приоритетнее.
-	 */
 	value?: any;
-
-	/**
-	 * Кастомные props (переопределяют конфиг из registry)
-	 */
 	customProps?: Record<string, any>;
-
-	/**
-	 * Класс для обертки
-	 */
 	className?: string;
 }
 
@@ -57,59 +33,54 @@ export function EntityField<E extends EntityType>({
 	className,
 }: EntityFieldProps<E>) {
 	// ========================================================================
-	// ✅ ЧИТАЕМ VALUE ИЗ STORE (реактивно!)
-	// ========================================================================
-	//
-	// Это ключевой фикс. Раньше value приходил только через prop,
-	// и если prop был "запечатан" из Server Component — UI не обновлялся.
-	//
-	// Теперь EntityField сам подписывается на Store через useStore.
-	// При любом изменении в Store — компонент ре-рендерится.
-	//
-	// Приоритет: Store value > prop value > undefined
+	// ✅ STORE VALUE (реактивно)
 	// ========================================================================
 
 	const storeValue = useStore(
-		(state) =>
-			(selectEntity(state, entity, entityId) as Record<string, any>)?.[
-				name as string
-			],
+		(state) => selectEntity(state, entity, entityId)?.[name as string],
 	);
 
-	// Store всегда приоритетнее — там актуальные данные
-	// prop value используется только как начальный fallback
 	const currentValue = storeValue ?? value;
 
 	// ========================================================================
-	// ПОЛУЧИТЬ КОНФИГУРАЦИЮ ИЗ REGISTRY
+	// ✅ DRAFT CONTEXT — автоматический saveMode="manual"
+	// ========================================================================
+
+	const isDraft = useIsDraft();
+
+	// ========================================================================
+	// REGISTRY CONFIG
 	// ========================================================================
 
 	const config = getFieldConfig(entity, String(name));
 
 	// ========================================================================
-	// FALLBACK: Если нет конфигурации - используем EditableText по умолчанию
+	// FALLBACK
 	// ========================================================================
 
 	if (!config) {
 		console.warn(
-			`[EntityField] No config found for ${entity}.${String(name)}, using EditableText as fallback`,
+			`[EntityField] No config for ${entity}.${String(name)}, using EditableText`,
 		);
 
 		return (
-			<EditableText
-				entity={entity}
-				entityId={entityId}
-				field={name}
-				value={currentValue}
-				label={String(name)}
-				className={className}
-				{...customProps}
-			/>
+			<div className={className}>
+				<EditableText
+					entity={entity}
+					entityId={entityId}
+					field={name}
+					value={currentValue}
+					label={String(name)}
+					// ✅ isDraft → manual, иначе из customProps или default
+					saveMode={isDraft ? "manual" : undefined}
+					{...customProps}
+				/>
+			</div>
 		);
 	}
 
 	// ========================================================================
-	// RENDER: Используем компонент из конфигурации
+	// RENDER
 	// ========================================================================
 
 	const {
@@ -125,17 +96,21 @@ export function EntityField<E extends EntityType>({
 		entity,
 		entityId,
 		field: name,
-		value: currentValue, // ← Store value, не prop!
+		value: currentValue,
 		label,
 		placeholder,
-		saveMode,
+		// ✅ isDraft принудительно ставит manual, иначе берём из config/customProps
+		saveMode: isDraft ? "manual" : saveMode,
 		debounceMs,
-		className,
 		...defaultProps,
 		...customProps,
 	};
 
-	return <Component {...mergedProps} />;
+	return (
+		<div className={className}>
+			<Component {...mergedProps} />
+		</div>
+	);
 }
 
 // ============================================================================

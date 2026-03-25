@@ -1,89 +1,27 @@
 "use client";
 
-/**
- * EntityEditor - Universal Editor Wrapper
- *
- * Универсальная обёртка для редактирования любой сущности.
- * Управляет:
- * - Инициализацией Store
- * - Real-time подписками
- * - Загрузкой данных
- *
- * USAGE:
- * ```tsx
- * // Simple - ReactNode children
- * <EntityEditor entity="notes" entityId={noteId} initialData={note}>
- *   <EntityField name="title" />
- *   <EntityField name="description" />
- * </EntityEditor>
- *
- * // Advanced - Render prop для кастомизации
- * <EntityEditor entity="notes" entityId={noteId} initialData={note}>
- *   {(note) => (
- *     <>
- *       <h1>{note.title}</h1>
- *       <EntityField name="title" />
- *       <EntityField name="description" />
- *       <p className="text-sm">Updated: {note.updated_at}</p>
- *     </>
- *   )}
- * </EntityEditor>
- * ```
- */
-
 import { useEffect, useRef, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { useStore, selectEntity } from "@/lib/store";
 import { subscribeToEntity } from "@/lib/supabase/realtime";
 import type { EntityType, EntityDataMap } from "@/lib/schemas";
+import { toast } from "sonner";
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface EntityEditorProps<E extends EntityType> {
-	/** Тип сущности */
 	entity: E;
-
-	/** ID сущности */
 	entityId: string;
-
-	/** Начальные данные (опционально, если уже есть в Store) */
 	initialData?: EntityDataMap[E];
-
-	/**
-	 * Children - может быть:
-	 * - ReactNode (простые EntityField компоненты)
-	 * - Function (render prop с данными из Store для кастомизации)
-	 *
-	 * @example
-	 * // ReactNode
-	 * <EntityField name="title" />
-	 *
-	 * @example
-	 * // Render prop
-	 * {(note) => (
-	 *   <>
-	 *     <h1>{note.title}</h1>
-	 *     <EntityField name="title" />
-	 *   </>
-	 * )}
-	 */
 	children: ReactNode | ((data: EntityDataMap[E]) => ReactNode);
-
-	/** Wrapper className */
 	className?: string;
-
-	/** Loading fallback */
 	loading?: ReactNode;
-
-	/** Error fallback */
 	error?: ReactNode;
-
-	/**
-	 * Подписываться ли на real-time?
-	 * @default true
-	 */
 	enableRealtime?: boolean;
+	onDeleted?: () => void;
+	redirectOnDelete?: string;
 }
 
 // ============================================================================
@@ -99,25 +37,28 @@ export function EntityEditor<E extends EntityType>({
 	loading,
 	error,
 	enableRealtime = true,
+	onDeleted,
+	redirectOnDelete,
 }: EntityEditorProps<E>) {
+	const router = useRouter();
+
 	// ==========================================================================
 	// STORE INITIALIZATION
 	// ==========================================================================
 
-	// ✅ Синхронная инициализация как в твоей старой версии (работает!)
 	const initialized = useRef(false);
 
-	if (!initialized.current && initialData) {
-		// Поместить данные из сервера в store СИНХРОННО
-		useStore.getState().upsertEntity(entity, entityId, initialData);
-		initialized.current = true;
-	}
+	useEffect(() => {
+		if (!initialized.current && initialData) {
+			useStore.getState().upsertEntity(entity, entityId, initialData);
+			initialized.current = true;
+		}
+	}, [entity, entityId, initialData]);
 
 	// ==========================================================================
 	// STORE SUBSCRIPTION
 	// ==========================================================================
 
-	// Подписка на обновления из Store
 	const data = useStore((state) => selectEntity(state, entity, entityId));
 
 	// ==========================================================================
@@ -127,28 +68,59 @@ export function EntityEditor<E extends EntityType>({
 	useEffect(() => {
 		if (!enableRealtime) return;
 
-		console.log(
-			`[EntityEditor] Setting up real-time for ${entity}:${entityId}`,
-		);
-
 		const unsubscribe = subscribeToEntity(entity, {
 			column: "id",
 			value: entityId,
 		});
 
-		return () => {
-			console.log(
-				`[EntityEditor] Cleaning up real-time for ${entity}:${entityId}`,
-			);
-			unsubscribe();
-		};
+		return () => unsubscribe();
 	}, [entity, entityId, enableRealtime]);
 
 	// ==========================================================================
-	// FALLBACKS
+	// ✅ DETECT DELETION (cross-tab через realtime)
+	// ==========================================================================
+	//
+	// КЛЮЧЕВОЙ МОМЕНТ: используем отдельный ref wasDataPresent.
+	// Он ставится в true ТОЛЬКО когда data реально приходит из useStore.
+	// Это решает race condition:
+	//   - initialized.current = true ставится в useEffect
+	//   - но data из useStore обновляется только при СЛЕДУЮЩЕМ рендере
+	//   - если проверять initialized → false positive на первом рендере
+	//   - если проверять wasDataPresent → гарантия что data БЫЛО и ИСЧЕЗЛО
+
+	const wasDataPresent = useRef(false);
+
+	useEffect(() => {
+		if (data) {
+			// Данные ЕСТЬ в Store — запоминаем
+			wasDataPresent.current = true;
+			return;
+		}
+
+		// Данные НЕТ — но были ли они раньше?
+		if (!wasDataPresent.current) {
+			// Никогда не было data → это первичная загрузка, НЕ удаление
+			return;
+		}
+
+		// ✅ Данные БЫЛИ и ПРОПАЛИ → удалены через realtime
+		console.log(`[EntityEditor] ${entity}:${entityId} was deleted`);
+
+		if (onDeleted) {
+			onDeleted();
+		} else if (redirectOnDelete) {
+			toast.info("This record was deleted");
+			router.push(redirectOnDelete);
+		}
+	}, [data, entity, entityId, onDeleted, redirectOnDelete, router]);
+
+	// ==========================================================================
+	// RENDER
 	// ==========================================================================
 
-	if (!data) {
+	const displayData = data ?? initialData;
+
+	if (!displayData) {
 		if (loading) return <>{loading}</>;
 
 		return (
@@ -158,25 +130,17 @@ export function EntityEditor<E extends EntityType>({
 		);
 	}
 
-	// ==========================================================================
-	// RENDER
-	// ==========================================================================
-
 	return (
 		<div className={className}>
-			{/* ✅ RENDER PROP PATTERN - главное улучшение! */}
-			{typeof children === "function" ? children(data) : children}
+			{typeof children === "function" ? children(displayData) : children}
 		</div>
 	);
 }
 
 // ============================================================================
-// PRESET LAYOUTS
+// PRESETS
 // ============================================================================
 
-/**
- * EntityEditorCard - С Card обёрткой
- */
 export function EntityEditorCard<E extends EntityType>(
 	props: EntityEditorProps<E>,
 ) {
@@ -189,9 +153,6 @@ export function EntityEditorCard<E extends EntityType>(
 	);
 }
 
-/**
- * EntityEditorFullWidth - На всю ширину
- */
 export function EntityEditorFullWidth<E extends EntityType>(
 	props: EntityEditorProps<E>,
 ) {

@@ -6,6 +6,7 @@ import { updateField, updateFieldImmediate } from '@/lib/field-handler'
 import { getFieldSchema, type EntityType, type EntityDataMap } from '@/lib/schemas'
 import { getPendingUpdate, hasPendingUpdate } from '@/lib/focus-wins'
 import { useStore } from '@/lib/store'
+import { useIsDraft } from '@/contexts/DraftContext' // ← ДОБАВЛЕНО
 
 // ============================================================================
 // ТИПЫ
@@ -17,33 +18,25 @@ interface UseEditableFieldConfig<E extends EntityType> {
 	field: keyof EntityDataMap[E]
 	value: any
 	debounceMs?: number
-	saveMode?: 'auto' | 'manual' | 'hybrid' // ← НОВОЕ!
+	saveMode?: 'auto' | 'manual' | 'hybrid'
 	onSuccess?: () => void
 	onError?: (error: string) => void
 }
 
 interface UseEditableFieldReturn {
-	// Значения
 	localValue: any
 	isDirty: boolean
 	isUpdating: boolean
 	error: string | null
-
-	// НОВОЕ для manual save
 	hasUnsavedChanges: boolean
 	isSaving: boolean
-
-	// Методы
 	handleChange: (value: any) => void
 	handleBlur: () => void
+	handleFocus: () => void
 	handleKeyDown: (e: React.KeyboardEvent) => void
 	reset: () => void
-
-	// НОВОЕ для manual save
 	save: () => Promise<void>
 	cancel: () => void
-
-	// React Hook Form (опционально)
 	register: any
 	formState: any
 }
@@ -52,24 +45,6 @@ interface UseEditableFieldReturn {
 // ХУК
 // ============================================================================
 
-/**
- * Универсальный хук для работы с editable полями
- * 
- * Что он делает:
- * - Управляет локальным состоянием поля
- * - Интегрируется с React Hook Form
- * - Валидирует через Zod
- * - Автоматически синхронизирует с Supabase
- * - Обрабатывает debounce и onBlur
- * 
- * @example
- * const field = useEditableField({
- *   entity: 'tasks',
- *   entityId: taskId,
- *   field: 'title',
- *   value: task.title,
- * })
- */
 export function useEditableField<E extends EntityType>(
 	config: UseEditableFieldConfig<E>
 ): UseEditableFieldReturn {
@@ -79,18 +54,33 @@ export function useEditableField<E extends EntityType>(
 		field,
 		value,
 		debounceMs = 500,
-		saveMode = 'auto', // ← НОВОЕ! По умолчанию auto
+		saveMode: saveModeFromProps = 'auto',
 		onSuccess,
 		onError,
 	} = config
+
+	// ========================================================================
+	// ✅ DRAFT CONTEXT — принудительный manual режим при создании
+	// ========================================================================
+	//
+	// Если компонент внутри DraftContext (CreateEntityDialog, CreateEntityPage)
+	// → всегда manual, независимо от того что передали в props.
+	//
+	// Это ЕДИНСТВЕННОЕ место где нужен фикс.
+	// Все 7 компонентов (EditableText, EditableTextarea, EditableSelect,
+	// EditableCheckbox, EditableDate, EditableSwitch, ReferencePicker)
+	// используют этот хук → ВСЕ автоматически работают правильно.
+
+	const isDraft = useIsDraft()
+	const saveMode = isDraft ? 'manual' : saveModeFromProps
 
 	// ========================================================================
 	// STATE
 	// ========================================================================
 
 	const [isUpdating, setIsUpdating] = useState(false)
-	const [isSaving, setIsSaving] = useState(false) // ← НОВОЕ!
-	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false) // ← НОВОЕ!
+	const [isSaving, setIsSaving] = useState(false)
+	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const initialValueRef = useRef(value)
 	const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -123,8 +113,6 @@ export function useEditableField<E extends EntityType>(
 	// ========================================================================
 
 	useEffect(() => {
-		// Обновить локальное значение, если внешнее изменилось
-		// (например, от real-time события)
 		if (value !== localValue && value !== initialValueRef.current) {
 			setValue(field as string, value)
 			initialValueRef.current = value
@@ -135,26 +123,33 @@ export function useEditableField<E extends EntityType>(
 	// ОБРАБОТЧИКИ
 	// ========================================================================
 
-	/**
-	 * Обработка изменения значения
-	 * Auto mode: с debounce
-	 * Manual mode: только помечает как изменённое
-	 */
 	const handleChange = useCallback(
 		(newValue: any) => {
 			setValue(field as string, newValue, { shouldValidate: true })
 			setError(null)
 
-			// ====================================================================
-			// AUTO MODE: Обычная логика с debounce
-			// ====================================================================
-			if (saveMode === 'auto') {
-				// Очистить предыдущий таймер
+			// ================================================================
+			// MANUAL MODE: только Store, НЕ вызываем updateEntityAction
+			// ================================================================
+			if (saveMode === 'manual') {
 				if (updateTimeoutRef.current) {
 					clearTimeout(updateTimeoutRef.current)
 				}
 
-				// Установить новый таймер
+				// ✅ Пишем в Store чтобы create() потом забрал данные
+				useStore.getState().updateField(entity, entityId, field, newValue)
+				setHasUnsavedChanges(true)
+				return // ← ВЫХОД! Не вызываем updateField/updateFieldImmediate
+			}
+
+			// ================================================================
+			// AUTO MODE
+			// ================================================================
+			if (saveMode === 'auto') {
+				if (updateTimeoutRef.current) {
+					clearTimeout(updateTimeoutRef.current)
+				}
+
 				updateTimeoutRef.current = setTimeout(async () => {
 					setIsUpdating(true)
 
@@ -180,27 +175,12 @@ export function useEditableField<E extends EntityType>(
 				}, debounceMs)
 			}
 
-			// ====================================================================
-			// MANUAL MODE: Только помечаем как изменённое
-			// ====================================================================
-			else if (saveMode === 'manual') {
-				// Очистить debounce если был
-				if (updateTimeoutRef.current) {
-					clearTimeout(updateTimeoutRef.current)
-				}
-
-				// Пометить что есть несохранённые изменения
-				setHasUnsavedChanges(true)
-			}
-
-			// ====================================================================
-			// HYBRID MODE: Debounce + manual trigger
-			// ====================================================================
+			// ================================================================
+			// HYBRID MODE
+			// ================================================================
 			else if (saveMode === 'hybrid') {
-				// Помечаем что есть изменения
 				setHasUnsavedChanges(true)
 
-				// И запускаем auto-save с debounce
 				if (updateTimeoutRef.current) {
 					clearTimeout(updateTimeoutRef.current)
 				}
@@ -231,35 +211,35 @@ export function useEditableField<E extends EntityType>(
 				}, debounceMs)
 			}
 		},
-		[entity, entityId, field, debounceMs, setValue, onSuccess, onError]
+		[entity, entityId, field, debounceMs, saveMode, setValue, onSuccess, onError]
 	)
 
-	/**
-	 * Обработка blur
-	 * Немедленное сохранение + синхронизация отложенных обновлений
-	 */
+	const handleFocus = useCallback(() => {
+		// Placeholder for Focus Wins integration
+	}, [])
+
 	const handleBlur = useCallback(async () => {
-		// Отменить pending debounce
 		if (updateTimeoutRef.current) {
 			clearTimeout(updateTimeoutRef.current)
 		}
 
-		// Проверить отложенные обновления даже если значение не изменилось
+		// ✅ Manual mode: НЕ сохраняем на blur
+		if (saveMode === 'manual') {
+			return
+		}
+
+		// Проверить отложенные обновления
 		const checkPending = () => {
 			if (hasPendingUpdate(entity, entityId, String(field))) {
 				const pendingValue = getPendingUpdate(entity, entityId, String(field))
-
 				if (pendingValue !== null) {
-					console.log('[EditableField] Applying pending remote update on blur')
 					setValue(String(field), pendingValue)
-					// localValue(pendingValue)
 					initialValueRef.current = pendingValue
 					useStore.getState().updateField(entity, entityId, field, pendingValue)
 				}
 			}
 		}
 
-		// Если значение не изменилось, проверить отложенные и выйти
 		if (localValue === initialValueRef.current) {
 			checkPending()
 			return
@@ -279,17 +259,13 @@ export function useEditableField<E extends EntityType>(
 		if (result.success) {
 			initialValueRef.current = localValue
 			onSuccess?.()
-			checkPending() // Проверить отложенные после сохранения
+			checkPending()
 		} else {
 			setError(result.error || 'Update failed')
 			onError?.(result.error || 'Update failed')
 		}
-	}, [entity, entityId, field, localValue, setValue, onSuccess, onError])
+	}, [entity, entityId, field, localValue, saveMode, setValue, onSuccess, onError])
 
-	/**
-	 * Обработка клавиш
-	 * Enter = save, Escape = cancel
-	 */
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent) => {
 			if (e.key === 'Enter' && !e.shiftKey) {
@@ -305,9 +281,6 @@ export function useEditableField<E extends EntityType>(
 		[handleBlur]
 	)
 
-	/**
-	 * Сброс к исходному значению
-	 */
 	const reset = useCallback(() => {
 		setValue(field as string, initialValueRef.current)
 		setError(null)
@@ -318,12 +291,9 @@ export function useEditableField<E extends EntityType>(
 	}, [field, setValue])
 
 	// ========================================================================
-	// MANUAL SAVE FUNCTIONS
+	// MANUAL SAVE
 	// ========================================================================
 
-	/**
-	 * Явное сохранение (для manual mode)
-	 */
 	const save = useCallback(async () => {
 		if (!hasUnsavedChanges && saveMode === 'manual') {
 			return
@@ -349,20 +319,8 @@ export function useEditableField<E extends EntityType>(
 			setError(result.error || 'Save failed')
 			onError?.(result.error || 'Save failed')
 		}
-	}, [
-		entity,
-		entityId,
-		field,
-		localValue,
-		hasUnsavedChanges,
-		saveMode,
-		onSuccess,
-		onError,
-	])
+	}, [entity, entityId, field, localValue, hasUnsavedChanges, saveMode, onSuccess, onError])
 
-	/**
-	 * Отмена изменений (для manual mode)
-	 */
 	const cancel = useCallback(() => {
 		setValue(field as string, initialValueRef.current)
 		setHasUnsavedChanges(false)
@@ -390,25 +348,19 @@ export function useEditableField<E extends EntityType>(
 	// ========================================================================
 
 	return {
-		// Values
 		localValue,
 		isDirty: localValue !== initialValueRef.current,
 		isUpdating,
 		error,
-
-		// Manual save
 		hasUnsavedChanges,
 		isSaving,
-
-		// Methods
 		handleChange,
+		handleFocus,
 		handleBlur,
 		handleKeyDown,
 		reset,
 		save,
 		cancel,
-
-		// React Hook Form
 		register,
 		formState,
 	}

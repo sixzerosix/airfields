@@ -1,8 +1,9 @@
 "use client";
+
 import { CreateEntityPage } from "@/components/entity/CreateEntityPage";
 import { EntityField } from "@/components/entity/EntityField";
 
-export async function NewNote() {
+export function NewNote() {
 	return (
 		<CreateEntityPage
 			entity="notes"
@@ -12,6 +13,8 @@ export async function NewNote() {
 		>
 			{(tempId) => (
 				<div className="grid gap-3">
+					{/* ✅ saveMode="manual" автоматически через DraftContext */}
+					{/* ✅ Не нужно customProps! */}
 					<EntityField
 						entity="notes"
 						entityId={tempId}

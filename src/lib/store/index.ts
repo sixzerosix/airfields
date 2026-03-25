@@ -7,77 +7,34 @@ import type { EntityType, EntityDataMap } from '../schemas'
 // ============================================================================
 
 interface StoreState {
-	// ========================================================================
-	// УНИВЕРСАЛЬНАЯ СТРУКТУРА
-	// ========================================================================
-	// Все сущности хранятся здесь
-	// entities.tasks = { id1: Task, id2: Task }
-	// entities.projects = { id1: Project, id2: Project }
-	// При добавлении новой таблицы в schemas.ts она автоматически появится здесь!
 	entities: {
 		[K in EntityType]?: Record<string, EntityDataMap[K]>
 	}
 
-	// Метаданные
-	loading: Record<string, boolean> // Загружаются ли данные
-	errors: Record<string, string | null> // Ошибки по entity
+	/**
+	 * ✅ ID черновиков — НЕ показываются в selectAllEntities (списках).
+	 * Добавляются через markAsDraft, убираются через unmarkDraft.
+	 * EntityField читает drafts нормально через selectEntity (по конкретному id).
+	 */
+	draftIds: Set<string>
 
-	// ========================================================================
+	loading: Record<string, boolean>
+	errors: Record<string, string | null>
+
 	// ACTIONS
-	// ========================================================================
-
-	/**
-	 * Установить все сущности определённого типа
-	 * Используется при первичной загрузке
-	 */
-	setEntities: <E extends EntityType>(
-		entity: E,
-		data: EntityDataMap[E][]
-	) => void
-
-	/**
-	 * Добавить/обновить одну сущность
-	 * Используется при создании или optimistic update
-	 */
-	upsertEntity: <E extends EntityType>(
-		entity: E,
-		id: string,
-		data: Partial<EntityDataMap[E]>
-	) => void
-
-	/**
-	 * Удалить сущность
-	 */
+	setEntities: <E extends EntityType>(entity: E, data: EntityDataMap[E][]) => void
+	upsertEntity: <E extends EntityType>(entity: E, id: string, data: Partial<EntityDataMap[E]>) => void
 	deleteEntity: (entity: EntityType, id: string) => void
-
-	/**
-	 * Обновить поле сущности (основной метод для field handler)
-	 */
-	updateField: <E extends EntityType>(
-		entity: E,
-		id: string,
-		field: keyof EntityDataMap[E],
-		value: any
-	) => void
-
-	/**
-	 * Применить обновление от real-time события
-	 */
-	applyRemoteUpdate: <E extends EntityType>(
-		entity: E,
-		id: string,
-		patch: Partial<EntityDataMap[E]>
-	) => void
-
-	/**
-	 * Установить состояние загрузки
-	 */
+	updateField: <E extends EntityType>(entity: E, id: string, field: keyof EntityDataMap[E], value: any) => void
+	applyRemoteUpdate: <E extends EntityType>(entity: E, id: string, patch: Partial<EntityDataMap[E]>) => void
 	setLoading: (key: string, loading: boolean) => void
-
-	/**
-	 * Установить ошибку
-	 */
 	setError: (key: string, error: string | null) => void
+
+	/** Пометить ID как draft (не показывать в списках) */
+	markAsDraft: (id: string) => void
+
+	/** Убрать пометку draft (после успешного create — показывать в списках) */
+	unmarkDraft: (id: string) => void
 }
 
 // ============================================================================
@@ -87,20 +44,11 @@ interface StoreState {
 export const useStore = create<StoreState>()(
 	devtools(
 		(set) => ({
-			// ========================================================================
-			// INITIAL STATE
-			// ========================================================================
-			entities: {}, // Пустой объект, таблицы добавляются автоматически
+			entities: {},
+			draftIds: new Set<string>(),
 			loading: {},
 			errors: {},
 
-			// ========================================================================
-			// ACTIONS (UNIVERSAL)
-			// ========================================================================
-
-			/**
-			 * Установить все сущности определённого типа
-			 */
 			setEntities: (entity, data) =>
 				set((state) => ({
 					entities: {
@@ -115,12 +63,8 @@ export const useStore = create<StoreState>()(
 					},
 				})),
 
-			/**
-			 * Добавить/обновить одну сущность
-			 */
 			upsertEntity: (entity, id, data) =>
 				set((state) => {
-					// Явно указываем тип для entityMap
 					const entityMap = (state.entities[entity] || {}) as Record<string, any>
 					const current = entityMap[id] || {}
 
@@ -139,32 +83,29 @@ export const useStore = create<StoreState>()(
 					}
 				}),
 
-			/**
-			 * Удалить сущность
-			 */
 			deleteEntity: (entity, id) =>
 				set((state) => {
-					// Явно указываем тип для entityMap
 					const entityMap = state.entities[entity] as Record<string, any> | undefined
 					if (!entityMap) return state
 
 					const newEntityMap = { ...entityMap }
 					delete newEntityMap[id]
 
+					// ✅ Убираем из draftIds тоже
+					const newDraftIds = new Set(state.draftIds)
+					newDraftIds.delete(id)
+
 					return {
 						entities: {
 							...state.entities,
 							[entity]: newEntityMap,
 						},
+						draftIds: newDraftIds,
 					}
 				}),
 
-			/**
-			 * Обновить поле сущности
-			 */
 			updateField: (entity, id, field, value) =>
 				set((state) => {
-					// Явно указываем тип для entityMap
 					const entityMap = state.entities[entity] as Record<string, any> | undefined
 					if (!entityMap) return state
 
@@ -186,17 +127,12 @@ export const useStore = create<StoreState>()(
 					}
 				}),
 
-			/**
-			 * Применить удалённое обновление (для real-time)
-			 */
 			applyRemoteUpdate: (entity, id, patch) =>
 				set((state) => {
-					// Явно указываем тип для entityMap
 					const entityMap = (state.entities[entity] || {}) as Record<string, any>
 					const current = entityMap[id]
 
 					if (!current) {
-						// Новая сущность от другого пользователя
 						return {
 							entities: {
 								...state.entities,
@@ -219,65 +155,65 @@ export const useStore = create<StoreState>()(
 					}
 				}),
 
-			/**
-			 * Установить состояние загрузки
-			 */
 			setLoading: (key, loading) =>
 				set((state) => ({
 					loading: { ...state.loading, [key]: loading },
 				})),
 
-			/**
-			 * Установить ошибку
-			 */
 			setError: (key, error) =>
 				set((state) => ({
 					errors: { ...state.errors, [key]: error },
 				})),
+
+			// ✅ Draft management
+			markAsDraft: (id) =>
+				set((state) => {
+					const newDraftIds = new Set(state.draftIds)
+					newDraftIds.add(id)
+					return { draftIds: newDraftIds }
+				}),
+
+			unmarkDraft: (id) =>
+				set((state) => {
+					const newDraftIds = new Set(state.draftIds)
+					newDraftIds.delete(id)
+					return { draftIds: newDraftIds }
+				}),
 		})
 	)
 )
 
 // ============================================================================
-// SELECTORS (HELPERS)
+// SELECTORS
 // ============================================================================
 
-/**
- * Получить одну сущность по ID
- */
 export function selectEntity<E extends EntityType>(
 	state: StoreState,
 	entity: E,
 	id: string
 ): EntityDataMap[E] | undefined {
-	// Явно указываем тип возвращаемого значения
 	return (state.entities[entity] as Record<string, EntityDataMap[E]> | undefined)?.[id]
 }
 
 /**
- * Получить все сущности определённого типа
+ * ✅ Фильтрует draft записи — они не появляются в списках
  */
 export function selectAllEntities<E extends EntityType>(
 	state: StoreState,
 	entity: E
 ): EntityDataMap[E][] {
-	// Явно указываем тип для entityMap
 	const entityMap = state.entities[entity] as Record<string, EntityDataMap[E]> | undefined
 	if (!entityMap) return []
 
-	return Object.values(entityMap)
+	return Object.entries(entityMap)
+		.filter(([id]) => !state.draftIds.has(id))
+		.map(([, value]) => value)
 }
 
-/**
- * Получить состояние загрузки
- */
 export function selectLoading(state: StoreState, key: string): boolean {
 	return state.loading[key] || false
 }
 
-/**
- * Получить ошибку
- */
 export function selectError(state: StoreState, key: string): string | null {
 	return state.errors[key] || null
 }

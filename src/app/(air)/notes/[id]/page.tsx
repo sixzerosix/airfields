@@ -1,7 +1,11 @@
+// ============================================================================
 // app/notes/[id]/page.tsx
+// ============================================================================
+
 import { EntityPage } from "@/components/entity/EntityPage";
 import { EntityEditor } from "@/components/entity/EntityEditor";
 import { EntityField } from "@/components/entity/EntityField";
+import { DeleteEntityButton } from "@/components/entity/DeleteEntityButton";
 
 interface PageProps {
 	params: Promise<{ id: string }>;
@@ -11,13 +15,15 @@ export default async function PageNote({ params }: PageProps) {
 	return (
 		<EntityPage entity="notes" params={params}>
 			{(note) => (
-				<div className="max-w-5xl mx-auto">
+				<div className="max-w-5xl mx-auto p-6">
+					{/* ✅ redirectOnDelete — при удалении из ДРУГОЙ вкладки → redirect */}
 					<EntityEditor
 						entity="notes"
 						entityId={note.id}
 						initialData={note}
+						redirectOnDelete="/notes"
 					>
-						<div className="grid gap-3">
+						<div className="grid gap-4">
 							<EntityField
 								entity="notes"
 								entityId={note.id}
@@ -33,6 +39,17 @@ export default async function PageNote({ params }: PageProps) {
 								entityId={note.id}
 								name="status"
 							/>
+
+							{/* ✅ Delete из ЭТОЙ вкладки — свой redirect */}
+							<DeleteEntityButton
+								entity="notes"
+								entityId={note.id}
+								redirectTo="/notes"
+								confirmTitle="Удалить заметку?"
+								confirmDescription="Это действие нельзя отменить."
+								confirmText="Удалить"
+								cancelText="Отмена"
+							/>
 						</div>
 					</EntityEditor>
 				</div>
@@ -40,3 +57,35 @@ export default async function PageNote({ params }: PageProps) {
 		</EntityPage>
 	);
 }
+
+// ============================================================================
+// Что происходит при удалении:
+// ============================================================================
+//
+// Сценарий: заметка открыта в 3 вкладках. Удаляешь из Вкладки 1.
+//
+// Вкладка 1 (нажал Delete):
+//   DeleteEntityButton → useEntityDelete.remove()
+//   → store.deleteEntity("notes", id)     (optimistic)
+//   → deleteEntityAction()                (server)
+//   → router.push("/notes")               (redirectTo)
+//
+// Supabase:
+//   → broadcast DELETE через Realtime channel
+//
+// Вкладка 2 (заметка открыта):
+//   realtime.ts → получил DELETE event
+//   → handleDelete() → store.deleteEntity("notes", id)
+//   → EntityEditor: data стало null, initialized.current = true
+//   → useEffect: "данные были и пропали"
+//   → toast.info("This record was deleted")
+//   → router.push("/notes")               (redirectOnDelete)
+//
+// Вкладка 3 (заметка открыта):
+//   Та же цепочка → тоже redirect на /notes
+//
+// Вкладка 4 (список заметок):
+//   realtime.ts → получил DELETE event
+//   → store.deleteEntity("notes", id)
+//   → EntityList ре-рендерится без удалённой заметки
+//   → Пользователь видит что заметка исчезла из списка
