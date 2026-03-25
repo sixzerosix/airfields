@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { EntityList } from "@/components/entity/EntityList";
 import { EntityField } from "@/components/entity/EntityField";
 import { EntityEditor } from "@/components/entity/EntityEditor";
 import { CreateEntityDialog } from "@/components/entity/CreateEntityDialog";
 import type { Note } from "@/lib/schemas";
+import { EditEntityDialog } from "@/components/entity/EditEntityDialog";
+import { useState } from "react";
 
 // import { useEntityList } from "@/hooks/useEntityList";
 
@@ -54,6 +56,9 @@ import type { Note } from "@/lib/schemas";
 
 export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 	const router = useRouter();
+
+	// ✅ ОДИН state для управления Dialog
+	const [editingId, setEditingId] = useState<string | null>(null);
 
 	return (
 		<div className="max-w-5xl mx-auto p-4">
@@ -128,11 +133,48 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 								entityId={note.id}
 								name="status"
 								customProps={{ label: "" }}
+								className="min-w-[120px]"
 							/>
+
+							<Button
+								variant="ghost"
+								size="icon"
+								onClick={() => setEditingId(note.id)}
+							>
+								<Pencil className="w-4 h-4" />
+							</Button>
 						</div>
 					</EntityEditor>
 				)}
 			</EntityList>
+
+			{/* ✅ ОДИН Dialog на весь список — монтируется 1 раз */}
+			<EditEntityDialog
+				entity="notes"
+				entityId={editingId}
+				onClose={() => setEditingId(null)}
+				title="Edit Note"
+			>
+				{(id) => (
+					<>
+						<EntityField
+							entity="notes"
+							entityId={id}
+							name="title"
+						/>
+						<EntityField
+							entity="notes"
+							entityId={id}
+							name="description"
+						/>
+						<EntityField
+							entity="notes"
+							entityId={id}
+							name="status"
+						/>
+					</>
+				)}
+			</EditEntityDialog>
 		</div>
 	);
 }

@@ -88,7 +88,7 @@ export function EditableSelect<E extends EntityType>({
 	const selectedOption = options.find((opt) => opt.value === localValue);
 
 	return (
-		<div className={cn("space-y-2", className)}>
+		<div className={cn("space-y-2")}>
 			{label && (
 				<Label htmlFor={`${entity}-${entityId}-${String(field)}`}>
 					{label}
@@ -106,8 +106,10 @@ export function EditableSelect<E extends EntityType>({
 					data-entity-id={entityId}
 					data-field={String(field)}
 					className={cn(
+						className,
 						error &&
 							"border-destructive focus-visible:ring-destructive",
+
 						// НИКАКИХ других визуальных изменений!
 					)}
 				>

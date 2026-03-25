@@ -70,7 +70,10 @@ export function EntityField<E extends EntityType>({
 	// ========================================================================
 
 	const storeValue = useStore(
-		(state) => selectEntity(state, entity, entityId)?.[name as string],
+		(state) =>
+			(selectEntity(state, entity, entityId) as Record<string, any>)?.[
+				name as string
+			],
 	);
 
 	// Store всегда приоритетнее — там актуальные данные
@@ -93,16 +96,15 @@ export function EntityField<E extends EntityType>({
 		);
 
 		return (
-			<div className={className}>
-				<EditableText
-					entity={entity}
-					entityId={entityId}
-					field={name}
-					value={currentValue}
-					label={String(name)}
-					{...customProps}
-				/>
-			</div>
+			<EditableText
+				entity={entity}
+				entityId={entityId}
+				field={name}
+				value={currentValue}
+				label={String(name)}
+				className={className}
+				{...customProps}
+			/>
 		);
 	}
 
@@ -128,15 +130,12 @@ export function EntityField<E extends EntityType>({
 		placeholder,
 		saveMode,
 		debounceMs,
+		className,
 		...defaultProps,
 		...customProps,
 	};
 
-	return (
-		<div className={className}>
-			<Component {...mergedProps} />
-		</div>
-	);
+	return <Component {...mergedProps} />;
 }
 
 // ============================================================================
