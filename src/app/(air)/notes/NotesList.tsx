@@ -13,6 +13,12 @@ import { EditEntityDialog } from "@/components/entity/EditEntityDialog";
 import { useState } from "react";
 import { DeleteEntityButton } from "@/components/entity/DeleteEntityButton";
 import { CreateEntityInline } from "@/components/entity/CreateEntityInline";
+import { useEntityFilters } from "@/hooks/useEntityFilters";
+import { useEntityList } from "@/hooks/useEntityList";
+import { EntityToolbar } from "@/components/entity/EntityToolbar";
+import { STATUS_NOTE_OPTIONS } from "@/lib/registry";
+import { useEntityPagination } from "@/hooks/useEntityPagination";
+import { EntityPagination } from "@/components/entity/EntityPagination";
 
 // import { useEntityList } from "@/hooks/useEntityList";
 
@@ -89,12 +95,73 @@ function SomeClientComponent() {
 	);
 }
 
+// const STATUS_OPTIONS = [
+// 	{ value: "active", label: "Активный" },
+// 	{ value: "todo", label: "В очереди" },
+// 	{ value: "in_progress", label: "В процессе" },
+// 	{ value: "done", label: "Выполнено" },
+// 	{ value: "audit", label: "Аудит" },
+// ];
+
 export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 	// ✅ ОДИН state для управления Dialog
 	const [editingId, setEditingId] = useState<string | null>(null);
 
+	// ✅ Хук фильтрации
+	const filters = useEntityFilters({
+		filterFields: [
+			{
+				field: "title",
+				label: "Title",
+				type: "text",
+				placeholder: "Search by title...",
+			},
+			{
+				field: "status",
+				label: "Status",
+				type: "select",
+				options: STATUS_NOTE_OPTIONS,
+			},
+			// Примеры других типов:
+			// { field: "priority", label: "Priority", type: "number" },
+			{ field: "created_at", label: "Created", type: "date" },
+			// { field: "is_archived", label: "Archived", type: "boolean" },
+		],
+		sortFields: [
+			{ field: "created_at", label: "Date Created" },
+			{ field: "updated_at", label: "Last Updated" },
+			{ field: "title", label: "Title" },
+			{ field: "status", label: "Status" },
+		],
+		defaultSort: { field: "created_at", direction: "desc" },
+	});
+
+	const pagination = useEntityPagination({
+		mode: "pages",
+		defaultPerPage: 10,
+		perPageOptions: [10, 25, 50, 100],
+	});
+
+	// const pagination = useEntityPagination({
+	// 	mode: "loadMore",
+	// 	defaultPerPage: 4,
+	// });
+
+	// const pagination = useEntityPagination({
+	// 	mode: "infinite",
+	// 	defaultPerPage: 8,
+	// });
+
+	// Данные из Store + realtime
+	const rawItems = useEntityList("notes", initialNotes);
+
+	// ✅ Применяем фильтры + сортировку
+	const filteredItems = filters.applyTo(rawItems);
+
+	const paginated = pagination.paginate(filteredItems);
+
 	return (
-		<div className="max-w-5xl mx-auto p-4">
+		<div className="max-w-5xl mx-auto p-4 grid gap-3">
 			{/* ============================================ */}
 			{/* HEADER + CREATE BUTTON                       */}
 			{/* ============================================ */}
@@ -103,40 +170,64 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 
 				<SomeClientComponent />
 			</div>
-			{/* ✅ Inline creation — раскрывается над списком */}
-			<CreateEntityInline
-				entity="notes"
-				initialValues={{ status: "todo" }}
-				alwaysOpen={true}
-				submitText="Add Note"
-			>
-				{(tempId) => (
-					<div className="grid gap-3">
-						<EntityField
-							entity="notes"
-							entityId={tempId}
-							name="title"
-						/>
-						<EntityField
-							entity="notes"
-							entityId={tempId}
-							name="description"
-						/>
-					</div>
-				)}
-			</CreateEntityInline>
+
+			<div>
+				{/* ✅ Inline creation — раскрывается над списком */}
+				<CreateEntityInline
+					entity="notes"
+					initialValues={{ status: "todo" }}
+					alwaysOpen={false}
+					autoClose={false}
+					submitText="Add Note"
+				>
+					{(tempId) => (
+						<div className="grid gap-3">
+							<EntityField
+								entity="notes"
+								entityId={tempId}
+								name="title"
+							/>
+							<EntityField
+								entity="notes"
+								entityId={tempId}
+								name="description"
+							/>
+						</div>
+					)}
+				</CreateEntityInline>
+			</div>
+
+			{/* ✅ Toolbar с фильтрами и сортировкой */}
+			<EntityToolbar {...filters} searchPlaceholder="Search notes..." />
 
 			{/* ============================================ */}
 			{/* LIST                                         */}
 			{/* ============================================ */}
+			{/* ✅ List с готовыми items (уже отфильтрованы и отсортированы) */}
 			<EntityList
 				entity="notes"
 				initialData={initialNotes}
+				items={paginated}
 				className="grid gap-3"
 				empty={
-					<p className="text-center text-muted-foreground py-12">
-						Заметок пока нет. Создайте первую!
-					</p>
+					filters.hasActiveFilters ? (
+						<div className="text-center py-12">
+							<p className="text-muted-foreground">
+								Nothing matches your filters
+							</p>
+							<Button
+								variant="link"
+								onClick={filters.clearAll}
+								className="mt-2"
+							>
+								Clear filters
+							</Button>
+						</div>
+					) : (
+						<p className="text-center text-muted-foreground py-12">
+							No notes yet
+						</p>
+					)
 				}
 			>
 				{(note) => (
@@ -183,6 +274,15 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 					</EntityEditor>
 				)}
 			</EntityList>
+
+			{/* ✅ Pagination — все элементы включены */}
+			<EntityPagination {...pagination} />
+
+			{/* ✅ Вариант: без Rows per page и info */}
+			{/* <EntityPagination {...pagination} showPerPage={false} showInfo={false} /> */}
+
+			{/* ✅ Вариант: только стрелки */}
+			{/* <EntityPagination {...pagination} showPageNumbers={false} showPerPage={false} showInfo={false} /> */}
 
 			{/* ✅ ОДИН Dialog на весь список — монтируется 1 раз */}
 			<EditEntityDialog

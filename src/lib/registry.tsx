@@ -90,7 +90,7 @@ const STATUS_OPTIONS = [
 	{ value: "done", label: "Done" },
 ];
 
-const STATUS_NOTE_OPTIONS = [
+export const STATUS_NOTE_OPTIONS = [
 	{ value: "todo", label: "Активный" },
 	{ value: "in_progress", label: "В процессе" },
 	{ value: "review", label: "Аудит" },

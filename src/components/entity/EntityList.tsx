@@ -1,6 +1,22 @@
 "use client";
 
-import { type ReactNode } from "react";
+/**
+ * EntityList — отображает список с realtime.
+ *
+ * Два режима:
+ * 1. Standalone (простой) — сортирует по created_at desc по умолчанию
+ * 2. С useEntityFilters — принимает уже отфильтрованные items
+ *
+ * @example
+ * // Standalone
+ * <EntityList entity="notes" initialData={notes}>
+ *   {(note) => <div>{note.title}</div>}
+ * </EntityList>
+ *
+ * // С фильтрами — см. usage-examples.tsx
+ */
+
+import { useMemo, type ReactNode } from "react";
 import { useEntityList } from "@/hooks/useEntityList";
 import type { EntityType, EntityDataMap } from "@/lib/schemas";
 
@@ -18,10 +34,17 @@ interface EntityListProps<E extends EntityType> {
 	filter?: { column: string; value: string };
 
 	/**
-	 * Сортировка.
-	 * @default { field: "updated_at", direction: "desc" } — новые сверху
+	 * Готовые items (уже отфильтрованные/отсортированные).
+	 * Если передан — initialData и realtime всё равно нужны для Store sync,
+	 * но рендерятся items.
 	 */
-	sort?: { field: string; direction: "asc" | "desc" };
+	items?: EntityDataMap[E][];
+
+	/**
+	 * Дефолтная сортировка (когда items не передан).
+	 * @default { field: "created_at", direction: "desc" }
+	 */
+	defaultSort?: { field: string; direction: "asc" | "desc" };
 }
 
 // ============================================================================
@@ -36,15 +59,34 @@ export function EntityList<E extends EntityType>({
 	empty,
 	enableRealtime = true,
 	filter,
-	sort,
+	items: externalItems,
+	defaultSort = { field: "created_at", direction: "desc" },
 }: EntityListProps<E>) {
-	const items = useEntityList(entity, initialData, {
+	// Store sync + realtime (всегда нужно, даже если items переданы снаружи)
+	const storeItems = useEntityList(entity, initialData, {
 		enableRealtime,
 		filter,
-		sort,
 	});
 
-	if (items.length === 0) {
+	// Если items переданы снаружи (от useEntityFilters) — используем их
+	// Иначе сортируем storeItems по defaultSort
+	const displayItems = useMemo(() => {
+		if (externalItems) return externalItems;
+
+		return [...storeItems].sort((a, b) => {
+			const aVal = (a as any)[defaultSort.field];
+			const bVal = (b as any)[defaultSort.field];
+
+			if (aVal == null && bVal == null) return 0;
+			if (aVal == null) return defaultSort.direction === "desc" ? 1 : -1;
+			if (bVal == null) return defaultSort.direction === "desc" ? -1 : 1;
+
+			const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+			return defaultSort.direction === "desc" ? -cmp : cmp;
+		});
+	}, [externalItems, storeItems, defaultSort]);
+
+	if (displayItems.length === 0) {
 		if (empty) return <>{empty}</>;
 		return (
 			<div className="p-6 text-center text-muted-foreground">
@@ -55,7 +97,7 @@ export function EntityList<E extends EntityType>({
 
 	return (
 		<div className={className}>
-			{items.map((item, index) => (
+			{displayItems.map((item, index) => (
 				<div key={(item as any).id}>{children(item, index)}</div>
 			))}
 		</div>

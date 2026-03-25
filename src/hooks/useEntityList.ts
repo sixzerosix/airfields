@@ -11,31 +11,30 @@ import type { EntityType, EntityDataMap } from "@/lib/schemas";
 interface UseEntityListOptions {
 	enableRealtime?: boolean;
 	filter?: { column: string; value: string };
-
-	/**
-	 * Сортировка списка.
-	 * @default { field: "updated_at", direction: "desc" }
-	 */
-	sort?: {
-		field: string;
-		direction: "asc" | "desc";
-	};
 }
 
 // ============================================================================
 // HOOK
 // ============================================================================
 
+/**
+ * useEntityList — синхронизация Store + Realtime
+ *
+ * ТОЛЬКО управляет данными (Store init + realtime).
+ * НЕ сортирует и НЕ фильтрует — это делает useEntityFilters.applyTo().
+ *
+ * @example
+ * ```tsx
+ * const items = useEntityList("notes", initialNotes);
+ * const filtered = filters.applyTo(items); // ← сортировка и фильтры тут
+ * ```
+ */
 export function useEntityList<E extends EntityType>(
 	entity: E,
 	initialData: EntityDataMap[E][],
 	options?: UseEntityListOptions,
 ): EntityDataMap[E][] {
-	const {
-		enableRealtime = true,
-		filter,
-		sort = { field: "updated_at", direction: "desc" },
-	} = options || {};
+	const { enableRealtime = true, filter } = options || {};
 
 	// ==========================================================================
 	// STORE INITIALIZATION
@@ -71,28 +70,11 @@ export function useEntityList<E extends EntityType>(
 	}, [entity, enableRealtime, filter?.column, filter?.value]);
 
 	// ==========================================================================
-	// GET FROM STORE (sorted)
+	// GET FROM STORE
 	// ==========================================================================
 
 	const items = useStore(
-		useShallow((state) => {
-			const all = selectAllEntities(state, entity);
-
-			// ✅ Сортировка
-			if (!sort) return all;
-
-			return [...all].sort((a, b) => {
-				const aVal = (a as any)[sort.field];
-				const bVal = (b as any)[sort.field];
-
-				if (aVal == null && bVal == null) return 0;
-				if (aVal == null) return sort.direction === "desc" ? 1 : -1;
-				if (bVal == null) return sort.direction === "desc" ? -1 : 1;
-
-				const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-				return sort.direction === "desc" ? -comparison : comparison;
-			});
-		}),
+		useShallow((state) => selectAllEntities(state, entity)),
 	);
 
 	return items;
