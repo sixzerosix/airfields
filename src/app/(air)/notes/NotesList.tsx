@@ -94,14 +94,6 @@ function SomeClientComponent() {
 	);
 }
 
-// const STATUS_OPTIONS = [
-// 	{ value: "active", label: "Активный" },
-// 	{ value: "todo", label: "В очереди" },
-// 	{ value: "in_progress", label: "В процессе" },
-// 	{ value: "done", label: "Выполнено" },
-// 	{ value: "audit", label: "Аудит" },
-// ];
-
 export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 	// ✅ ОДИН state для управления Dialog
 	const [editingId, setEditingId] = useState<string | null>(null);

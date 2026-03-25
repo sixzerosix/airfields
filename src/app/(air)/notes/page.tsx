@@ -15,7 +15,7 @@ export default async function NotesPage() {
 	const { data: notes } = await supabase
 		.from("notes")
 		.select("*")
-		.order("updated_at", { ascending: false });
+		.order("created_at", { ascending: true });
 
 	// Передаём ДАННЫЕ, не функцию!
 	return (

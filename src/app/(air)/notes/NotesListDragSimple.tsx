@@ -9,6 +9,7 @@ import { useEntityList } from "@/hooks/useEntityList";
 import { useEntityPagination } from "@/hooks/useEntityPagination";
 import { useEntityReorder } from "@/hooks/useEntityReorder";
 import type { Note } from "@/lib/schemas";
+import { CreateEntityInline } from "@/components/entity/CreateEntityInline";
 
 export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 	const rawItems = useEntityList("notes", initialNotes);
@@ -29,6 +30,29 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 	return (
 		<div className="max-w-3xl mx-auto p-4 space-y-4">
 			<h1 className="text-2xl font-bold">Notes</h1>
+
+			<CreateEntityInline
+				entity="notes"
+				initialValues={{ status: "todo" }}
+				alwaysOpen={false}
+				autoClose={false}
+				submitText="Add Note"
+			>
+				{(tempId) => (
+					<div className="grid gap-3">
+						<EntityField
+							entity="notes"
+							entityId={tempId}
+							name="title"
+						/>
+						<EntityField
+							entity="notes"
+							entityId={tempId}
+							name="description"
+						/>
+					</div>
+				)}
+			</CreateEntityInline>
 
 			<EntityListSortable
 				entity="notes"
