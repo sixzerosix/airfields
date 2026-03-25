@@ -43,19 +43,19 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 						entityId={note.id}
 						initialData={note}
 					>
-						<div className="flex items-center gap-3 p-3 border rounded-lg">
+						<div className="flex items-center gap-3">
 							<Link href={`/notes/${note.id}`} className="flex-1">
 								<span className="font-medium">
 									{note.title || "Untitled"}
 								</span>
 							</Link>
-							<EntityField
+							{/* <EntityField
 								entity="notes"
 								entityId={note.id}
 								name="status"
 								customProps={{ label: "" }}
 								className="min-w-[120px]"
-							/>
+							/> */}
 						</div>
 					</EntityEditor>
 				)}

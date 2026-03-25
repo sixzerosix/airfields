@@ -163,7 +163,7 @@ export function EntityListSortable<E extends EntityType>({
 			{/* Overlay — что видно при перетаскивании */}
 			<DragOverlay>
 				{activeItem ? (
-					<div className="opacity-80 shadow-lg rounded-xl bg-accent border">
+					<div className="opacity-80 gap-3 p-3 border rounded-lg">
 						{renderOverlay
 							? renderOverlay(activeItem)
 							: children(activeItem, -1)}
@@ -206,7 +206,7 @@ function SortableItem({ id, children, showHandle }: SortableItemProps) {
 			className={cn("relative", isDragging && "z-50 opacity-50")}
 			{...(!showHandle ? { ...attributes, ...listeners } : {})}
 		>
-			<div className="flex items-center gap-0">
+			<div className="flex items-center gap-3 p-3 border rounded-lg">
 				{/* Drag handle */}
 				{showHandle && (
 					<button
