@@ -172,7 +172,9 @@ export function EntityPagination({
 											"pointer-events-none opacity-50",
 										"cursor-pointer",
 									)}
-								/>
+								>
+									<span className="sr-only">Previous</span>
+								</PaginationPrevious>
 							</PaginationItem>
 						)}
 
@@ -200,7 +202,9 @@ export function EntityPagination({
 											"pointer-events-none opacity-50",
 										"cursor-pointer",
 									)}
-								/>
+								>
+									<span className="sr-only">Next</span>
+								</PaginationNext>
 							</PaginationItem>
 						)}
 					</PaginationContent>

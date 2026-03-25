@@ -86,7 +86,20 @@ export function subscribeToEntity<E extends EntityType>(
 			console.log(`[Realtime] Subscribed to ${channelKey}`)
 		}
 		if (status === 'CHANNEL_ERROR') {
-			console.error(`[Realtime] Error subscribing to ${channelKey}`)
+			console.warn(`[Realtime] Channel error on ${channelKey}, will retry...`)
+
+			// Auto-reconnect: удаляем старый канал, переподключаемся через 3 сек
+			setTimeout(() => {
+				unsubscribeFromEntity(channelKey)
+				subscribeToEntity(entity, filter)
+			}, 3000)
+		}
+		if (status === 'TIMED_OUT') {
+			console.warn(`[Realtime] Timed out on ${channelKey}, reconnecting...`)
+			setTimeout(() => {
+				unsubscribeFromEntity(channelKey)
+				subscribeToEntity(entity, filter)
+			}, 3000)
 		}
 	})
 

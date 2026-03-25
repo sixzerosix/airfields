@@ -138,8 +138,8 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 
 	const pagination = useEntityPagination({
 		mode: "pages",
-		defaultPerPage: 10,
-		perPageOptions: [10, 25, 50, 100],
+		defaultPerPage: 5,
+		perPageOptions: [5, 10, 25, 50, 100],
 	});
 
 	// const pagination = useEntityPagination({
@@ -276,7 +276,7 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 			</EntityList>
 
 			{/* ✅ Pagination — все элементы включены */}
-			<EntityPagination {...pagination} />
+			<EntityPagination {...pagination} maxVisiblePages={4} />
 
 			{/* ✅ Вариант: без Rows per page и info */}
 			{/* <EntityPagination {...pagination} showPerPage={false} showInfo={false} /> */}

@@ -137,6 +137,7 @@ export function useEditableField<E extends EntityType>(
 				}
 
 				// ✅ Пишем в Store чтобы create() потом забрал данные
+
 				useStore.getState().updateField(entity, entityId, field, newValue)
 				setHasUnsavedChanges(true)
 				return // ← ВЫХОД! Не вызываем updateField/updateFieldImmediate
