@@ -21,7 +21,7 @@
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_JWT_SECRET=your_jwt_secret_from_docker_env   # из .env self-hosted
 HMAC_SECRET=super_secret_min_32_chars_here!!
 GO_SERVICE_URL=https://go.yourdomain.com
 ```
@@ -58,8 +58,17 @@ export function generateHMACToken(userId: string, action: string): string {
 
 ```typescript
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import jwt from 'jsonwebtoken'
 import { generateHMACToken } from '@/lib/hmac'
+
+// Тип payload Supabase JWT
+interface SupabaseJWTPayload {
+  sub: string        // user_id
+  role: string       // 'authenticated'
+  email?: string
+  exp: number
+  iat: number
+}
 
 export async function POST(req: NextRequest) {
   // 1. Берём Authorization header от клиента
@@ -68,27 +77,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const jwt = authHeader.replace('Bearer ', '')
+  const token = authHeader.replace('Bearer ', '')
 
-  // 2. Верифицируем Supabase JWT через service role
-  //    (никогда не шлём этот JWT дальше в Go)
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  const { data: { user }, error } = await supabase.auth.getUser(jwt)
-
-  if (error || !user) {
+  // 2. Верифицируем Supabase JWT локально — без сетевого запроса
+  //    jsonwebtoken сам проверяет подпись + expiry
+  let payload: SupabaseJWTPayload
+  try {
+    payload = jwt.verify(
+      token,
+      process.env.SUPABASE_JWT_SECRET!
+    ) as SupabaseJWTPayload
+  } catch {
     return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
   }
+
+  // 3. Дополнительная проверка роли (не анонимный пользователь)
+  if (payload.role !== 'authenticated') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const userId = payload.sub
 
   // 3. Берём тело запроса от клиента
   const body = await req.json()
 
   // 4. Генерируем короткоживущий HMAC-токен для Go
   //    Go видит только этот токен — никакого Supabase JWT
-  const hmacToken = generateHMACToken(user.id, 'generate')
+  const hmacToken = generateHMACToken(userId, 'generate')
 
   // 5. Проксируем запрос в Go микросервис
   const goRes = await fetch(`${process.env.GO_SERVICE_URL}/generate`, {
@@ -98,8 +113,8 @@ export async function POST(req: NextRequest) {
       'X-Auth-Token': hmacToken,
     },
     body: JSON.stringify({
-      user_id: user.id,
-      data: body.data, // только нужные данные, не весь профиль
+      user_id: userId,
+      data: body.data,
     }),
   })
 
