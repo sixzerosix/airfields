@@ -163,7 +163,7 @@ export function EntityListSortable<E extends EntityType>({
 			{/* Overlay — что видно при перетаскивании */}
 			<DragOverlay>
 				{activeItem ? (
-					<div className="opacity-80 gap-3 p-3 border rounded-lg">
+					<div className="opacity-90 gap-3 p-3 border rounded-lg bg-background">
 						{renderOverlay
 							? renderOverlay(activeItem)
 							: children(activeItem, -1)}
