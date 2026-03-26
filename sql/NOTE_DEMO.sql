@@ -315,3 +315,392 @@ VALUES
 -- =============================================
 -- SELECT title, position FROM notes ORDER BY position;
 -- Должно быть: a0, a1, a2, ..., a9, aA, aB, ..., aT
+-- =============================================
+-- ОБНОВИТЬ timestamps чтобы сортировка работала визуально
+-- =============================================
+-- Проблема: все записи вставлены одномоментно → одинаковый created_at
+-- → сортировка asc/desc выглядит одинаково
+--
+-- Фикс: разносим created_at с интервалом 1 час
+-- =============================================
+UPDATE
+	notes
+SET
+	created_at = now() - ((sub.rn - 1) * interval '1 hour'),
+	updated_at = now() - ((sub.rn - 1) * interval '30 minutes')
+FROM
+	(
+		SELECT
+			id,
+			ROW_NUMBER() OVER (
+				PARTITION BY user_id
+				ORDER BY
+					position ASC
+			) as rn
+		FROM
+			notes
+	) sub
+WHERE
+	notes.id = sub.id;
+
+-- Проверка:
+-- SELECT title, position, created_at FROM notes ORDER BY created_at DESC LIMIT 5;
+-- =============================================
+-- ТЕГИ И КАТЕГОРИИ — Полиморфная архитектура
+-- =============================================
+-- tags — глобальный пул тегов пользователя
+-- entity_tags — M2M связь тег ↔ любая сущность
+-- categories — с вложенностью, скоуп по entity_type
+-- =============================================
+-- =============================================
+-- 1. TAGS (глобальный пул)
+-- =============================================
+CREATE TABLE tags (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid REFERENCES auth.users NOT NULL,
+	name text NOT NULL CHECK (char_length(name) >= 1),
+	color text DEFAULT '#6B7280',
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Уникальное имя тега на пользователя
+ALTER TABLE
+	tags
+ADD
+	CONSTRAINT tags_user_name_unique UNIQUE (user_id, name);
+
+CREATE INDEX idx_tags_user_id ON tags (user_id);
+
+-- RLS
+ALTER TABLE
+	tags ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own tags" ON tags FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- Realtime
+ALTER PUBLICATION supabase_realtime
+ADD
+	TABLE tags;
+
+-- =============================================
+-- 2. ENTITY_TAGS (M2M — полиморфная связь)
+-- =============================================
+-- entity_type = 'notes', 'tasks', etc.
+-- entity_id = UUID записи из соответствующей таблицы
+-- Нет FK на entity_id — полиморфная связь
+-- =============================================
+CREATE TABLE entity_tags (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid REFERENCES auth.users NOT NULL,
+	tag_id uuid REFERENCES tags(id) ON DELETE CASCADE NOT NULL,
+	entity_type text NOT NULL,
+	entity_id uuid NOT NULL,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Один тег на одну сущность — не дублируется
+ALTER TABLE
+	entity_tags
+ADD
+	CONSTRAINT entity_tags_unique UNIQUE (tag_id, entity_type, entity_id);
+
+CREATE INDEX idx_entity_tags_entity ON entity_tags (entity_type, entity_id);
+
+CREATE INDEX idx_entity_tags_tag ON entity_tags (tag_id);
+
+CREATE INDEX idx_entity_tags_user ON entity_tags (user_id);
+
+-- RLS
+ALTER TABLE
+	entity_tags ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own entity_tags" ON entity_tags FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- Realtime
+ALTER PUBLICATION supabase_realtime
+ADD
+	TABLE entity_tags;
+
+-- =============================================
+-- 3. CATEGORIES (с вложенностью)
+-- =============================================
+-- entity_type = скоуп: категории notes ≠ категории tasks
+-- parent_id = вложенность (null = корневая)
+-- =============================================
+CREATE TABLE categories (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid REFERENCES auth.users NOT NULL,
+	entity_type text NOT NULL,
+	name text NOT NULL CHECK (char_length(name) >= 1),
+	parent_id uuid REFERENCES categories(id) ON DELETE
+	SET
+		NULL,
+		color text DEFAULT '#6B7280',
+		position text DEFAULT 'a0',
+		created_at timestamptz NOT NULL DEFAULT now(),
+		updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Уникальное имя категории в скоупе entity_type + parent
+ALTER TABLE
+	categories
+ADD
+	CONSTRAINT categories_unique_name UNIQUE (user_id, entity_type, parent_id, name);
+
+CREATE INDEX idx_categories_user_entity ON categories (user_id, entity_type);
+
+CREATE INDEX idx_categories_parent ON categories (parent_id);
+
+-- Триггер updated_at
+CREATE TRIGGER trigger_update_categories_updated_at BEFORE
+UPDATE
+	ON categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- RLS
+ALTER TABLE
+	categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own categories" ON categories FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- Realtime
+ALTER PUBLICATION supabase_realtime
+ADD
+	TABLE categories;
+
+-- =============================================
+-- 4. ДОБАВИТЬ category_id В notes
+-- =============================================
+ALTER TABLE
+	notes
+ADD
+	COLUMN category_id uuid REFERENCES categories(id) ON DELETE
+SET
+	NULL;
+
+CREATE INDEX idx_notes_category ON notes (category_id);
+
+-- =============================================
+-- 5. ДЕМО-ДАННЫЕ
+-- =============================================
+-- Теги
+INSERT INTO
+	tags (user_id, name, color)
+VALUES
+	(
+		'4c1a224d-bc95-4804-870c-7832a73462ad',
+		'Важное',
+		'#EF4444'
+	),
+	(
+		'4c1a224d-bc95-4804-870c-7832a73462ad',
+		'Личное',
+		'#3B82F6'
+	),
+	(
+		'4c1a224d-bc95-4804-870c-7832a73462ad',
+		'Работа',
+		'#F59E0B'
+	),
+	(
+		'4c1a224d-bc95-4804-870c-7832a73462ad',
+		'Учёба',
+		'#10B981'
+	),
+	(
+		'4c1a224d-bc95-4804-870c-7832a73462ad',
+		'Идеи',
+		'#8B5CF6'
+	),
+	(
+		'4c1a224d-bc95-4804-870c-7832a73462ad',
+		'Срочно',
+		'#DC2626'
+	);
+
+-- Категории для notes (с вложенностью)
+INSERT INTO
+	categories (user_id, entity_type, name, color, position)
+VALUES
+	(
+		'4c1a224d-bc95-4804-870c-7832a73462ad',
+		'notes',
+		'Проекты',
+		'#3B82F6',
+		'a0'
+	),
+	(
+		'4c1a224d-bc95-4804-870c-7832a73462ad',
+		'notes',
+		'Быт',
+		'#10B981',
+		'a1'
+	),
+	(
+		'4c1a224d-bc95-4804-870c-7832a73462ad',
+		'notes',
+		'Саморазвитие',
+		'#8B5CF6',
+		'a2'
+	);
+
+-- Подкатегории (parent_id)
+INSERT INTO
+	categories (
+		user_id,
+		entity_type,
+		name,
+		parent_id,
+		color,
+		position
+	)
+SELECT
+	'4c1a224d-bc95-4804-870c-7832a73462ad',
+	'notes',
+	sub.name,
+	c.id,
+	sub.color,
+	sub.pos
+FROM
+	(
+		VALUES
+			('Проекты', 'Frontend', '#60A5FA', 'a0'),
+			('Проекты', 'Backend', '#34D399', 'a1'),
+			('Саморазвитие', 'Книги', '#A78BFA', 'a0'),
+			('Саморазвитие', 'Курсы', '#F472B6', 'a1')
+	) AS sub(parent_name, name, color, pos)
+	JOIN categories c ON c.name = sub.parent_name
+	AND c.user_id = '4c1a224d-bc95-4804-870c-7832a73462ad'
+	AND c.entity_type = 'notes';
+
+-- Привязать теги к нескольким заметкам
+INSERT INTO
+	entity_tags (user_id, tag_id, entity_type, entity_id)
+SELECT
+	'4c1a224d-bc95-4804-870c-7832a73462ad',
+	t.id,
+	'notes',
+	n.id
+FROM
+	tags t,
+	notes n
+WHERE
+	t.user_id = '4c1a224d-bc95-4804-870c-7832a73462ad'
+	AND n.user_id = '4c1a224d-bc95-4804-870c-7832a73462ad'
+	AND (
+		(
+			t.name = 'Важное'
+			AND n.title IN (
+				'Закончить рефакторинг auth',
+				'Отправить отчёт по проекту'
+			)
+		)
+		OR (
+			t.name = 'Работа'
+			AND n.title IN (
+				'Подготовить презентацию',
+				'Закончить рефакторинг auth',
+				'Написать статью про Supabase'
+			)
+		)
+		OR (
+			t.name = 'Личное'
+			AND n.title IN (
+				'Позвонить маме',
+				'Сходить в зал',
+				'Записаться к стоматологу'
+			)
+		)
+		OR (
+			t.name = 'Учёба'
+			AND n.title IN (
+				'Почитать книгу "Чистый код"',
+				'Выучить 20 новых слов по английскому',
+				'Пройти курс по Tailwind CSS'
+			)
+		)
+		OR (
+			t.name = 'Срочно'
+			AND n.title IN (
+				'Оплатить интернет',
+				'Отправить отчёт по проекту'
+			)
+		)
+	);
+
+-- =============================================
+-- ПРОВЕРКА
+-- =============================================
+-- SELECT t.name AS tag, n.title AS note
+-- FROM entity_tags et
+-- JOIN tags t ON t.id = et.tag_id
+-- JOIN notes n ON n.id = et.entity_id
+-- WHERE et.entity_type = 'notes'
+-- ORDER BY t.name, n.title;
+--
+-- SELECT c.name, c.parent_id, p.name AS parent_name
+-- FROM categories c
+-- LEFT JOIN categories p ON p.id = c.parent_id
+-- WHERE c.entity_type = 'notes'
+-- ORDER BY c.parent_id NULLS FIRST, c.position;
+-- =============================================
+-- FIX: Добавить DEFAULT auth.uid() для user_id
+-- =============================================
+-- Теперь клиент НЕ обязан передавать user_id при INSERT.
+-- Supabase подставит auth.uid() автоматически.
+-- RLS WITH CHECK (auth.uid() = user_id) пройдёт.
+-- =============================================
+ALTER TABLE
+	tags
+ALTER COLUMN
+	user_id
+SET
+	DEFAULT auth.uid();
+
+ALTER TABLE
+	entity_tags
+ALTER COLUMN
+	user_id
+SET
+	DEFAULT auth.uid();
+
+ALTER TABLE
+	categories
+ALTER COLUMN
+	user_id
+SET
+	DEFAULT auth.uid();
+
+-- Проверка (опционально):
+-- INSERT INTO tags (name, color) VALUES ('test-tag', '#FF0000');
+-- SELECT * FROM tags WHERE name = 'test-tag';
+-- → user_id должен быть заполнен автоматически
+-- Добавляем скоуп
+ALTER TABLE
+	tags
+ADD
+	COLUMN entity_type text;
+
+-- Заполняем существующие теги (они были для notes)
+UPDATE
+	tags
+SET
+	entity_type = 'notes'
+WHERE
+	entity_type IS NULL;
+
+-- Делаем обязательным
+ALTER TABLE
+	tags
+ALTER COLUMN
+	entity_type
+SET
+	NOT NULL;
+
+-- Обновляем unique constraint (имя уникально В РАМКАХ entity_type)
+ALTER TABLE
+	tags DROP CONSTRAINT tags_user_name_unique;
+
+ALTER TABLE
+	tags
+ADD
+	CONSTRAINT tags_user_entity_name_unique UNIQUE (user_id, entity_type, name);

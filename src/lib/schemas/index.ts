@@ -1,14 +1,13 @@
-// lib/schemas.ts
 import { z } from 'zod'
 
 // ======================
 // 1. Тип сущностей
 // ======================
-export const SUPPORTED_ENTITIES = ['notes', 'tasks', 'projects'] as const
+export const SUPPORTED_ENTITIES = ['notes'] as const
 export type EntityType = typeof SUPPORTED_ENTITIES[number]
 
 // ======================
-// 2. Типы данных каждой сущности
+// 2. Типы данных
 // ======================
 export type EntityDataMap = {
 	notes: {
@@ -17,58 +16,33 @@ export type EntityDataMap = {
 		title: string
 		description: string | null
 		status: 'todo' | 'in_progress' | 'review' | 'done' | 'archived'
-		created_at: string
-		updated_at: string
-	}
-	tasks: {
-		id: string
-		title: string
-		description: string | null
-		status: 'todo' | 'in_progress' | 'done' | 'archived'
-		priority?: 'low' | 'medium' | 'high' | 'urgent'
-		due_date?: string | null
-		created_at: string
-		updated_at: string
-	}
-	projects: {
-		id: string
-		name: string
-		description: string | null
-		status: 'active' | 'paused' | 'completed' | 'archived'
+		category_id: string | null
 		created_at: string
 		updated_at: string
 	}
 }
 
 // ======================
-// 3. Zod-схемы для полей (Field-level validation)
+// 3. Zod-схемы для полей
 // ======================
 export const FieldSchemas = {
 	notes: {
 		position: z.string().optional(),
 		title: z.string().min(1, 'Заголовок обязателен').max(200),
 		description: z.string().max(5000, 'Слишком длинное описание').nullable().optional(),
-		status: z.enum(['todo', 'in_progress', 'review', 'done', 'archived'])
-	},
-	tasks: {
-		title: z.string().min(1, 'Title is required').max(200),
-		description: z.string().max(5000).nullable().optional(),
-		status: z.enum(['todo', 'in_progress', 'done', 'archived']),
-		priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().nullable(),
-	},
-	projects: {
-		name: z.string().min(1, 'Name is required').max(100),
-		description: z.string().max(2000).nullable().optional(),
+		status: z.enum(['todo', 'in_progress', 'review', 'done', 'archived']),
+		category_id: z.string().uuid().nullable().optional(),
+		tags: z.array(z.string()).optional(),
 	},
 } as const
 
 // ============================================================================
-// УТИЛИТЫ ДЛЯ ВАЛИДАЦИИ
+// УТИЛИТЫ
 // ============================================================================
 
 export function getFieldSchema<E extends EntityType>(
 	entity: E,
-	field: string   // оставляем string для удобства
+	field: string
 ): z.ZodTypeAny {
 	const entitySchemas = FieldSchemas[entity];
 
@@ -77,7 +51,6 @@ export function getFieldSchema<E extends EntityType>(
 		return z.any();
 	}
 
-	// Безопасное приведение
 	if (field in entitySchemas) {
 		return (entitySchemas as any)[field];
 	}
@@ -86,9 +59,6 @@ export function getFieldSchema<E extends EntityType>(
 	return z.any();
 }
 
-/**
- * Валидировать значение поля
- */
 export function validateField<E extends EntityType>(
 	entity: E,
 	field: keyof EntityDataMap[E],
@@ -109,9 +79,4 @@ export function validateField<E extends EntityType>(
 	}
 }
 
-/**
- * Экспорт отдельных типов для удобства
- */
 export type Note = EntityDataMap['notes']
-export type Task = EntityDataMap['tasks']
-export type Project = EntityDataMap['projects']

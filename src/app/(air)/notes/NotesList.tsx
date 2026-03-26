@@ -77,7 +77,6 @@ function SomeClientComponent() {
 		>
 			{(tempId) => (
 				<>
-					{/* ✅ Просто EntityField — saveMode="manual" автоматически */}
 					<EntityField
 						entity="notes"
 						entityId={tempId}
@@ -88,6 +87,12 @@ function SomeClientComponent() {
 						entityId={tempId}
 						name="description"
 					/>
+					<EntityField
+						entity="notes"
+						entityId={tempId}
+						name="category_id"
+					/>
+					<EntityField entity="notes" entityId={tempId} name="tags" />
 				</>
 			)}
 		</CreateEntityDialog>
@@ -331,6 +336,12 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 							entityId={id}
 							name="status"
 						/>
+						<EntityField
+							entity="notes"
+							entityId={id}
+							name="category_id"
+						/>
+						<EntityField entity="notes" entityId={id} name="tags" />
 					</>
 				)}
 			</EditEntityDialog>

@@ -40,6 +40,20 @@ export default async function PageNote({ params }: PageProps) {
 								name="status"
 							/>
 
+							{/* ✅ Категория — через EntityField, конфиг из registry */}
+							<EntityField
+								entity="notes"
+								entityId={note.id}
+								name="category_id"
+							/>
+
+							{/* ✅ Теги — через EntityField, конфиг из registry */}
+							<EntityField
+								entity="notes"
+								entityId={note.id}
+								name="tags"
+							/>
+
 							{/* ✅ Delete из ЭТОЙ вкладки — свой redirect */}
 							<DeleteEntityButton
 								entity="notes"

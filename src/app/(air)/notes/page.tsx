@@ -21,8 +21,8 @@ export default async function NotesPage() {
 	return (
 		<>
 			{/* <NotesTable initialNotes={notes || []} /> */}
-			{/* <NotesList initialNotes={notes || []} /> */}
-			<NotesSimple initialNotes={notes || []} />
+			<NotesList initialNotes={notes || []} />
+			{/* <NotesSimple initialNotes={notes || []} /> */}
 		</>
 	);
 }

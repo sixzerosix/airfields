@@ -2,17 +2,16 @@
  * ENTITY REGISTRY
  *
  * Центральный реестр конфигурации полей для всех сущностей.
- * Здесь определяется как каждое поле должно отображаться.
- *
- * При добавлении новой таблицы - добавь её сюда!
+ * Включает конфигурацию M2M связей — автоматическое определение
+ * какие поля хранят relations и как их сохранять.
  */
 
 import { EditableText } from "@/components/fields/EditableText";
 import { EditableTextarea } from "@/components/fields/EditableTextarea";
 import { EditableSelect } from "@/components/fields/EditableSelect";
-import { EditableDate } from "@/components/fields/EditableDate";
-import { ReferencePicker } from "@/components/fields/ReferencePicker";
-import { ArrowDown, ArrowRight, ArrowUp, Zap } from "lucide-react";
+import { EditableTags } from "@/components/fields/EditableTags";
+import { EditableCombobox } from "@/components/fields/EditableCombobox";
+
 import type { EntityType } from "./schemas";
 import type { ComponentType } from "react";
 
@@ -21,74 +20,61 @@ import type { ComponentType } from "react";
 // ============================================================================
 
 /**
- * Конфигурация одного поля
+ * Конфигурация M2M/12M связи для поля
  */
-export interface FieldConfig {
-	// Компонент для рендера
-	component: ComponentType<any>;
+export interface RelationConfig {
+	/** Тип связи */
+	type: "m2m";
 
-	// Label для поля
-	label?: string;
+	/** Junction table (таблица связей) */
+	junctionTable: string;
 
-	// Placeholder
-	placeholder?: string;
+	/** FK в junction table на связанную сущность (tag_id, user_id, etc.) */
+	foreignKey: string;
 
-	// Дополнительные props для компонента
-	props?: Record<string, any>;
+	/**
+	 * Полиморфная связь? (entity_type + entity_id)
+	 * true → junction table имеет entity_type + entity_id (наш entity_tags)
+	 * false → junction table имеет конкретный FK (note_id, task_id)
+	 * @default false
+	 */
+	polymorphic?: boolean;
 
-	// Save mode (auto | manual | hybrid)
-	saveMode?: "auto" | "manual" | "hybrid";
-
-	// Debounce в мс (для auto mode)
-	debounceMs?: number;
+	/**
+	 * FK на основную сущность (для НЕ полиморфных связей)
+	 * Например "note_id" в таблице note_collaborators
+	 * Не нужен если polymorphic = true
+	 */
+	entityKey?: string;
 }
 
-/**
- * Конфигурация всех полей сущности
- */
+export interface FieldConfig {
+	component: ComponentType<any>;
+	label?: string;
+	placeholder?: string;
+	props?: Record<string, any>;
+	saveMode?: "auto" | "manual" | "hybrid";
+	debounceMs?: number;
+
+	/**
+	 * Конфигурация связи — если поле хранит M2M данные
+	 * При создании: useEntityDraft автоматически извлечёт IDs
+	 * и создаст записи в junction table
+	 */
+	relation?: RelationConfig;
+}
+
 export interface EntityConfig {
 	fields: Record<string, FieldConfig>;
 }
 
-/**
- * Весь реестр
- */
 export type Registry = {
 	[K in EntityType]?: EntityConfig;
 };
 
 // ============================================================================
-// OPTIONS (опции для Select полей)
+// OPTIONS
 // ============================================================================
-
-const PRIORITY_OPTIONS = [
-	{
-		value: "low",
-		label: "Low",
-		icon: <ArrowDown className="h-4 w-4 text-blue-500" />,
-	},
-	{
-		value: "medium",
-		label: "Medium",
-		icon: <ArrowRight className="h-4 w-4 text-yellow-500" />,
-	},
-	{
-		value: "high",
-		label: "High",
-		icon: <ArrowUp className="h-4 w-4 text-orange-500" />,
-	},
-	{
-		value: "urgent",
-		label: "Urgent",
-		icon: <Zap className="h-4 w-4 text-red-500" />,
-	},
-];
-
-const STATUS_OPTIONS = [
-	{ value: "todo", label: "To Do" },
-	{ value: "in_progress", label: "In Progress" },
-	{ value: "done", label: "Done" },
-];
 
 export const STATUS_NOTE_OPTIONS = [
 	{ value: "todo", label: "Активный" },
@@ -128,129 +114,68 @@ export const EntityRegistry: Registry = {
 					options: STATUS_NOTE_OPTIONS,
 				},
 			},
-		},
-	},
-
-	// ==========================================================================
-	// TASKS
-	// ==========================================================================
-	tasks: {
-		fields: {
-			title: {
-				component: EditableText,
-				label: "Task Title",
-				placeholder: "Enter task title...",
-				saveMode: "auto",
-				debounceMs: 500,
-			},
-
-			description: {
-				component: EditableTextarea,
-				label: "Description",
-				placeholder: "Add a description...",
-				saveMode: "auto",
-				debounceMs: 800,
+			tags: {
+				component: EditableTags,
+				label: "Теги",
 				props: {
-					rows: 6,
+					allowCreate: true,
+				},
+				// ✅ M2M конфигурация — generic, не хардкод
+				relation: {
+					type: "m2m",
+					junctionTable: "entity_tags",
+					foreignKey: "tag_id",
+					polymorphic: true,
 				},
 			},
-
-			status: {
-				component: EditableSelect,
-				label: "Status",
-				saveMode: "auto", // Select сохраняется сразу
+			category_id: {
+				component: EditableCombobox,
+				label: "Категория",
 				props: {
-					options: STATUS_OPTIONS,
-				},
-			},
-
-			priority: {
-				component: EditableSelect,
-				label: "Priority",
-				saveMode: "auto",
-				props: {
-					options: PRIORITY_OPTIONS,
-				},
-			},
-
-			due_date: {
-				component: EditableDate,
-				label: "Due Date",
-				placeholder: "Pick a date...",
-				saveMode: "auto",
-			},
-
-			// NEW: Foreign Key to Projects
-			project_id: {
-				component: ReferencePicker,
-				label: "Project",
-				placeholder: "Select project...",
-				saveMode: "auto",
-				props: {
-					referenceTable: "projects",
+					referenceTable: "categories",
 					displayField: "name",
-					secondaryField: "status",
+					parentField: "parent_id",
+					filter: { entity_type: "notes" },
 					allowNull: true,
-					nullLabel: "No project",
-					orderBy: { field: "name", ascending: true },
+					nullLabel: "Без категории",
 				},
+				// Нет relation — это обычное FK поле на notes, не M2M
 			},
+
+			// ============================================================
+			// ПРИМЕРЫ будущих M2M связей:
+			// ============================================================
+			//
+			// collaborators: {
+			//   component: EditableUserPicker,
+			//   label: "Участники",
+			//   relation: {
+			//     type: "m2m",
+			//     junctionTable: "note_collaborators",
+			//     foreignKey: "user_id",
+			//     polymorphic: false,
+			//     entityKey: "note_id",
+			//   },
+			// },
+			//
+			// attachments: {
+			//   component: EditableFilePicker,
+			//   label: "Файлы",
+			//   relation: {
+			//     type: "m2m",
+			//     junctionTable: "entity_attachments",
+			//     foreignKey: "file_id",
+			//     polymorphic: true,
+			//   },
+			// },
 		},
 	},
-
-	// ==========================================================================
-	// PROJECTS (пример для второй таблицы)
-	// ==========================================================================
-	projects: {
-		fields: {
-			name: {
-				component: EditableText,
-				label: "Project Name",
-				placeholder: "Enter project name...",
-				saveMode: "auto",
-			},
-
-			description: {
-				component: EditableTextarea,
-				label: "Description",
-				placeholder: "Describe the project...",
-				saveMode: "auto",
-				props: {
-					rows: 8,
-				},
-			},
-		},
-	},
-
-	// ==========================================================================
-	// COMMENTS (пример для третьей таблицы)
-	// ==========================================================================
-	// Раскомментируй когда добавишь таблицу comments:
-	/*
-  comments: {
-    fields: {
-      content: {
-        component: EditableTextarea,
-        label: 'Comment',
-        placeholder: 'Write your comment...',
-        saveMode: 'manual',  // ← Комментарии лучше сохранять вручную!
-        props: {
-          rows: 4,
-          showSaveButton: true,
-        },
-      },
-    },
-  },
-  */
 };
 
 // ============================================================================
 // HELPERS
 // ============================================================================
 
-/**
- * Получить конфигурацию поля
- */
 export function getFieldConfig(
 	entity: EntityType,
 	field: string,
@@ -258,19 +183,32 @@ export function getFieldConfig(
 	return EntityRegistry[entity]?.fields[field];
 }
 
-/**
- * Получить все поля сущности
- */
 export function getEntityFields(entity: EntityType): string[] {
 	const config = EntityRegistry[entity];
 	if (!config) return [];
-
 	return Object.keys(config.fields);
 }
 
-/**
- * Проверить есть ли конфигурация для поля
- */
 export function hasFieldConfig(entity: EntityType, field: string): boolean {
 	return !!EntityRegistry[entity]?.fields[field];
+}
+
+/**
+ * ✅ Получить все M2M поля для сущности
+ *
+ * Используется useEntityDraft при create() — автоматически находит
+ * все поля с relation.type === "m2m" и извлекает IDs из Store.
+ */
+export function getM2MFields(
+	entity: EntityType,
+): { field: string; relation: RelationConfig }[] {
+	const config = EntityRegistry[entity];
+	if (!config) return [];
+
+	return Object.entries(config.fields)
+		.filter(([, fc]) => fc.relation?.type === "m2m")
+		.map(([field, fc]) => ({
+			field,
+			relation: fc.relation!,
+		}));
 }

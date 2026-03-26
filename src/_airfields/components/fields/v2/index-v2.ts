@@ -10,13 +10,13 @@
  */
 
 // Core
-export { EditableText } from './EditableText-v2'
-export { EditableTextarea } from './EditableTextarea-v2'
-export { EditableNumber } from './EditableNumber-v2'
-export { EditableSelect } from './EditableSelect-v2'
+// export { EditableText } from './EditableText-v2'
+// export { EditableTextarea } from './EditableTextarea-v2'
+// export { EditableNumber } from './EditableNumber-v2'
+// export { EditableSelect } from './EditableSelect-v2'
 
-// Date & Time
-export { EditableDate, EditableCheckbox } from './EditableDate-and-Checkbox-v2'
+// // Date & Time
+// export { EditableDate, EditableCheckbox } from './EditableDate-and-Checkbox-v2'
 export { EditableDateRange } from './EditableAdvanced-v2'
 export { EditableDateTime } from './EditableExtras-v2'
 
@@ -25,16 +25,16 @@ export { EditableSwitch } from './EditableExtras-v2'
 
 // Advanced
 export { EditableEmail, EditableColor, EditableMultiSelect } from './EditableExtras-v2'
-export { 
-  EditableRichText, 
-  EditableFileUpload, 
+export {
+  EditableRichText,
+  EditableFileUpload,
   EditableImageUpload,
   ManyToManyTags,
-  ReferencePicker 
+  ReferencePicker
 } from './EditableAdvanced-v2'
 
 // Buttons (используй вместо встроенных кнопок)
-export { FieldButtons } from './FieldButtons'
+// export { FieldButtons } from './FieldButtons'
 
-// Groups
-export { FieldGroup } from './FieldGroup'
+// // Groups
+// export { FieldGroup } from './FieldGroup'

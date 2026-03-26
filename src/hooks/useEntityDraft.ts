@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
 import { useStore } from "@/lib/store";
 import { createEntityAction } from "@/actions/update-entity";
+import { getM2MFields } from "@/lib/registry";
 import type { EntityType, EntityDataMap } from "@/lib/schemas";
 import { toast } from "sonner";
 
@@ -39,13 +40,11 @@ export function useEntityDraft<E extends EntityType>(
 		const id = uuidv4();
 		const store = useStore.getState();
 
-		// Кладём в Store для EntityField
 		store.upsertEntity(entity, id, {
 			id,
 			...options.initialValues,
 		} as EntityDataMap[E]);
 
-		// ✅ Помечаем как draft — selectAllEntities будет игнорировать
 		store.markAsDraft(id);
 
 		return id;
@@ -71,11 +70,34 @@ export function useEntityDraft<E extends EntityType>(
 				throw new Error("No data to save — fill in at least one field");
 			}
 
-			const { created_at, updated_at, ...cleanData } = data as any;
+			// ✅ Автоматически извлекаем M2M relations из registry + Store
+			const m2mFields = getM2MFields(entity);
+			const relations: {
+				junctionTable: string;
+				foreignKey: string;
+				ids: string[];
+				polymorphic: boolean;
+				entityKey?: string;
+			}[] = [];
 
+			for (const { field, relation } of m2mFields) {
+				const ids = (data as any)[field];
+				if (Array.isArray(ids) && ids.length > 0) {
+					relations.push({
+						junctionTable: relation.junctionTable,
+						foreignKey: relation.foreignKey,
+						ids,
+						polymorphic: relation.polymorphic ?? false,
+						entityKey: relation.entityKey,
+					});
+				}
+			}
+
+			// ✅ Вызываем server action с generic relations
 			const result = await createEntityAction({
 				entity,
-				data: { ...cleanData, id: tempId },
+				data: { ...data, id: tempId },
+				relations: relations.length > 0 ? relations : undefined,
 			});
 
 			if (result?.serverError) {
@@ -91,7 +113,7 @@ export function useEntityDraft<E extends EntityType>(
 				throw new Error("Server did not return an ID");
 			}
 
-			// ✅ Убираем пометку draft — теперь запись настоящая, покажется в списке
+			// Убираем пометку draft
 			useStore.getState().unmarkDraft(tempId);
 
 			toast.success("Created!");
@@ -116,16 +138,13 @@ export function useEntityDraft<E extends EntityType>(
 	}, [entity, tempId, isCreating, router]);
 
 	// =========================================================================
-	// RESET (новый tempId)
+	// RESET
 	// =========================================================================
 
 	const reset = useCallback(() => {
 		const store = useStore.getState();
-
-		// Удаляем старый draft (deleteEntity уже убирает из draftIds)
 		store.deleteEntity(entity, tempId);
 
-		// Новый draft
 		const newId = uuidv4();
 		store.upsertEntity(entity, newId, {
 			id: newId,
@@ -138,7 +157,7 @@ export function useEntityDraft<E extends EntityType>(
 	}, [entity, tempId]);
 
 	// =========================================================================
-	// CLEAR FIELDS (тот же tempId)
+	// CLEAR FIELDS
 	// =========================================================================
 
 	const clearFields = useCallback(() => {

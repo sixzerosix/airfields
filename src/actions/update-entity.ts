@@ -1,97 +1,68 @@
 'use server'
 
 /**
- * UNIVERSAL UPDATE ENTITY ACTION
- * 
- * Единый Server Action для обновления любого поля любой сущности.
- * 
- * Безопасность:
- * - Валидация через Zod (client + server)
- * - RLS защита в Supabase
- * - Rate limiting через middleware
- * - Type-safe от клиента до БД
- * 
- * Использование:
- * await updateEntityAction({
- *   entity: 'tasks',
- *   entityId: '123',
- *   field: 'title',
- *   value: 'New title'
- * })
+ * UNIVERSAL ENTITY ACTIONS
+ *
+ * Server Actions для CRUD операций с любой сущностью.
+ *
+ * - updateEntityAction     — обновить одно поле
+ * - batchUpdateEntityAction — обновить несколько полей
+ * - createEntityAction      — создать запись + M2M связи (generic)
+ * - deleteEntityAction      — удалить запись
  */
 
 import { z } from 'zod'
 import { actionClient } from '@/lib/safe-action'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { EntityType, EntityDataMap, getFieldSchema } from '@/lib/schemas'
+import { generateKeyBetween } from 'fractional-indexing'
+import {
+	EntityType,
+	EntityDataMap,
+	getFieldSchema,
+	SUPPORTED_ENTITIES,
+} from '@/lib/schemas'
 
 // ============================================================================
-// SCHEMA
+// UPDATE (одно поле)
 // ============================================================================
 
-/**
- * Схема для валидации входных данных
- * 
- * ВАЖНО: entity автоматически берётся из EntityType!
- */
 const UpdateEntitySchema = z.object({
 	entity: z.string().refine(
-		(val) => ['notes', 'tasks', 'projects'].includes(val),
+		(val) => (SUPPORTED_ENTITIES as readonly string[]).includes(val),
 		{ message: 'Invalid entity type' }
 	) as z.ZodType<EntityType>,
 
 	entityId: z.string().uuid({
-		message: 'Invalid entity ID format'
+		message: 'Invalid entity ID format',
 	}),
 
 	field: z.string().min(1, {
-		message: 'Field name is required'
+		message: 'Field name is required',
 	}),
 
-	value: z.any(), // Валидация по типу поля ниже
+	value: z.any(),
 })
 
-// ============================================================================
-// ACTION
-// ============================================================================
-
-/**
- * Universal Update Entity Action
- * 
- * @param entity - Тип сущности (tasks, projects, comments, etc)
- * @param entityId - UUID сущности
- * @param field - Имя поля для обновления
- * @param value - Новое значение
- * 
- * @returns { success: true, data } или { success: false, error }
- */
 export const updateEntityAction = actionClient
 	.inputSchema(UpdateEntitySchema)
 	.action(async ({ parsedInput: { entity, entityId, field, value } }) => {
 		console.log('[updateEntityAction] Called:', { entity, entityId, field })
 
-		// ========================================================================
-		// 1. ДОПОЛНИТЕЛЬНАЯ ВАЛИДАЦИЯ (по типу поля)
-		// ========================================================================
-
-		const fieldSchema = getFieldSchema(entity, field);
-
-		const validationResult = fieldSchema.safeParse(value);
+		// Валидация по типу поля
+		const fieldSchema = getFieldSchema(entity, field)
+		const validationResult = fieldSchema.safeParse(value)
 
 		if (!validationResult.success) {
-			const errorMessage = validationResult.error.issues[0]?.message || 'Validation failed';
-
-			console.error(`[updateEntityAction] Validation failed: ${entity}.${field} -> ${errorMessage}`);
-
-			// Это позволит увидеть ошибку на клиенте
-			throw new Error(errorMessage);
+			const errorMessage =
+				validationResult.error.issues[0]?.message || 'Validation failed'
+			console.error(
+				`[updateEntityAction] Validation failed: ${entity}.${field} -> ${errorMessage}`,
+			)
+			throw new Error(errorMessage)
 		}
 
-		// ========================================================================
-		// 2. SUPABASE UPDATE
-		// ========================================================================
-
+		// Supabase update
 		const supabase = await createServerSupabaseClient()
 
 		const { data, error } = await supabase
@@ -109,17 +80,8 @@ export const updateEntityAction = actionClient
 			throw new Error(error.message)
 		}
 
-		// ========================================================================
-		// 3. REVALIDATE NEXT.JS CACHE
-		// ========================================================================
-
-		// Инвалидировать кэш для этой страницы
 		revalidatePath(`/${entity}/${entityId}`)
-		revalidatePath(`/${entity}`) // Список тоже
-
-		// ========================================================================
-		// 4. RETURN SUCCESS
-		// ========================================================================
+		revalidatePath(`/${entity}`)
 
 		console.log('[updateEntityAction] Success:', data.id)
 
@@ -131,33 +93,28 @@ export const updateEntityAction = actionClient
 	})
 
 // ============================================================================
-// BATCH UPDATE (опционально)
+// BATCH UPDATE (несколько полей за раз)
 // ============================================================================
 
-/**
- * Schema для batch update (обновить несколько полей за раз)
- */
 const BatchUpdateSchema = z.object({
 	entity: z.string() as z.ZodType<EntityType>,
 	entityId: z.string().uuid(),
-	updates: z.record(z.string(), z.any()), // ← FIX: 2 аргумента
+	updates: z.record(z.string(), z.any()),
 })
 
-/**
- * Batch Update Action
- * 
- * Обновить несколько полей одним запросом
- * Полезно для форм с зависимыми полями
- */
 export const batchUpdateEntityAction = actionClient
 	.inputSchema(BatchUpdateSchema)
 	.action(async ({ parsedInput: { entity, entityId, updates } }) => {
-		console.log('[batchUpdateEntityAction] Called:', { entity, entityId, updates })
+		console.log('[batchUpdateEntityAction] Called:', {
+			entity,
+			entityId,
+			updates,
+		})
 
 		// Валидация всех полей
 		for (const [field, value] of Object.entries(updates)) {
 			try {
-				const fieldSchema = getFieldSchema(entity as any, field as any)
+				const fieldSchema = getFieldSchema(entity, field)
 				fieldSchema.parse(value)
 			} catch (error) {
 				throw new Error(`Validation failed for field ${field}`)
@@ -190,7 +147,7 @@ export const batchUpdateEntityAction = actionClient
 	})
 
 // ============================================================================
-// DELETE ACTION (бонус)
+// DELETE
 // ============================================================================
 
 const DeleteEntitySchema = z.object({
@@ -198,9 +155,6 @@ const DeleteEntitySchema = z.object({
 	entityId: z.string().uuid(),
 })
 
-/**
- * Delete Entity Action
- */
 export const deleteEntityAction = actionClient
 	.inputSchema(DeleteEntitySchema)
 	.action(async ({ parsedInput: { entity, entityId } }) => {
@@ -224,129 +178,146 @@ export const deleteEntityAction = actionClient
 	})
 
 // ============================================================================
-// CREATE ACTION (бонус)
+// CREATE (с generic M2M relations)
 // ============================================================================
+
+/**
+ * Generic M2M relation для server action.
+ * useEntityDraft автоматически формирует из registry.
+ */
+const RelationInsertSchema = z.object({
+	/** Junction table (entity_tags, note_collaborators, etc.) */
+	junctionTable: z.string(),
+	/** FK column name (tag_id, user_id, etc.) */
+	foreignKey: z.string(),
+	/** IDs для вставки */
+	ids: z.array(z.string()),
+	/** Полиморфная связь? (entity_type + entity_id) */
+	polymorphic: z.boolean(),
+	/** FK на основную сущность (для НЕ полиморфных) */
+	entityKey: z.string().optional(),
+})
 
 const CreateEntitySchema = z.object({
 	entity: z.string() as z.ZodType<EntityType>,
-	data: z.record(z.string(), z.any()), // ← FIX: 2 аргумента
+	data: z.record(z.string(), z.any()),
+	/** Generic M2M relations — формируется автоматически из registry */
+	relations: z.array(RelationInsertSchema).optional(),
 })
-
-/**
- * Create Entity Action
- */
-// ============================================================================
-// ЗАМЕНИ createEntityAction В update-entity.ts
-// ============================================================================
-//
-// npm install fractional-indexing
-//
-// Изменение: генерирует fractional position key для новых записей.
-// Новая запись получает ключ ПОСЛЕ последнего элемента.
-// ============================================================================
-
-import { generateKeyBetween } from 'fractional-indexing'
 
 export const createEntityAction = actionClient
 	.inputSchema(CreateEntitySchema)
-	.action(async ({ parsedInput: { entity, data } }) => {
-		const supabase = await createServerSupabaseClient();
+	.action(async ({ parsedInput: { entity, data, relations } }) => {
+		const supabase = await createServerSupabaseClient()
 
-		const { data: { user } } = await supabase.auth.getUser();
-		if (!user) throw new Error("Not authenticated");
+		const {
+			data: { user },
+		} = await supabase.auth.getUser()
+		if (!user) throw new Error('Not authenticated')
 
-		// ✅ Генерируем position если не передан
-		let position = data.position;
+		// ==================================================================
+		// 1. POSITION (новые сверху)
+		// ==================================================================
+
+		let position = data.position
 		if (!position) {
-			// Найти последний элемент (максимальный position)
 			const { data: firstItems } = await supabase
 				.from(entity)
-				.select("position")
-				.eq("user_id", user.id)
-				.order("position", { ascending: true })  // первый
-				.limit(1);
+				.select('position')
+				.eq('user_id', user.id)
+				.order('position', { ascending: true })
+				.limit(1)
 
-			const firstKey = firstItems?.[0]?.position ?? null;
-			position = generateKeyBetween(null, firstKey);  // ПЕРЕД первым
+			const firstKey = firstItems?.[0]?.position ?? null
+			position = generateKeyBetween(null, firstKey)
 		}
+
+		// ==================================================================
+		// 2. CLEAN DATA — убираем виртуальные M2M поля и мета
+		// ==================================================================
+
+		const cleanData: Record<string, any> = {}
+		for (const [key, value] of Object.entries(data)) {
+			// Пропускаем мета-поля
+			if (key === 'created_at' || key === 'updated_at') continue
+			// Пропускаем виртуальные M2M поля (массивы IDs)
+			if (Array.isArray(value)) continue
+			cleanData[key] = value
+		}
+
+		// ==================================================================
+		// 3. INSERT основную запись
+		// ==================================================================
 
 		const { data: records, error } = await supabase
 			.from(entity)
 			.insert({
-				...data,
+				...cleanData,
 				user_id: user.id,
 				position,
 			})
-			.select("id");
+			.select('id')
 
 		if (error) {
-			console.error("[createEntityAction] Supabase Error:", error);
-			throw new Error(error.message);
+			console.error('[createEntityAction] Insert Error:', error)
+			throw new Error(error.message)
 		}
 
-		const id = records?.[0]?.id ?? data.id;
-		if (!id) throw new Error("Created but could not retrieve ID");
+		const entityId = records?.[0]?.id ?? data.id
+		if (!entityId) throw new Error('Created but could not retrieve ID')
 
-		revalidatePath(`/${entity}`);
+		// ==================================================================
+		// 4. INSERT M2M relations (generic)
+		// ==================================================================
 
-		return { id };
-	});
+		if (relations && relations.length > 0) {
+			for (const rel of relations) {
+				if (!rel.ids || rel.ids.length === 0) continue
 
-// ============================================================================
-// ДОБАВЬ В update-entity.ts
-// ============================================================================
+				// Формируем записи для junction table
+				const rows = rel.ids.map((foreignId) => {
+					const row: Record<string, any> = {
+						[rel.foreignKey]: foreignId,
+						user_id: user.id,
+					}
 
-// Schema
-const ReorderEntitiesSchema = z.object({
-	entity: z.string() as z.ZodType<EntityType>,
-	updates: z.array(
-		z.object({
-			id: z.string().uuid(),
-			position: z.number().int().min(0),
-		}),
-	),
-});
+					if (rel.polymorphic) {
+						// entity_type + entity_id (наш entity_tags)
+						row.entity_type = entity
+						row.entity_id = entityId
+					} else {
+						// Конкретный FK (note_id, task_id)
+						row[rel.entityKey || `${entity.slice(0, -1)}_id`] = entityId
+					}
 
-/**
- * Reorder Entities Action
- *
- * Batch-обновление positions для drag-and-drop.
- * Один запрос на все изменения — атомарно.
- */
-export const reorderEntitiesAction = actionClient
-	.inputSchema(ReorderEntitiesSchema)
-	.action(async ({ parsedInput: { entity, updates } }) => {
-		const supabase = await createServerSupabaseClient();
+					return row
+				})
 
-		const { data: { user } } = await supabase.auth.getUser();
-		if (!user) throw new Error("Not authenticated");
+				const { error: relError } = await supabase
+					.from(rel.junctionTable)
+					.insert(rows)
 
-		// Batch update через Promise.all
-		// Supabase не поддерживает multi-row update в одном запросе,
-		// поэтому параллельные запросы — это стандартный подход.
-		const results = await Promise.all(
-			updates.map(({ id, position }) =>
-				supabase
-					.from(entity)
-					.update({
-						position,
-						updated_at: new Date().toISOString(),
-					})
-					.eq("id", id)
-					.eq("user_id", user.id) // RLS double-check
-			),
-		);
+				if (relError) {
+					console.error(
+						`[createEntityAction] M2M insert error (${rel.junctionTable}):`,
+						relError,
+					)
 
-		// Проверяем ошибки
-		const errors = results.filter((r) => r.error);
-		if (errors.length > 0) {
-			console.error("[reorderEntitiesAction] Errors:", errors.map((e) => e.error));
-			throw new Error(`Failed to update ${errors.length} items`);
+					// Компенсация: удалить основную запись при ошибке M2M
+					await supabase.from(entity).delete().eq('id', entityId)
+
+					throw new Error(
+						`Failed to create relations in ${rel.junctionTable}: ${relError.message}`,
+					)
+				}
+			}
 		}
 
-		revalidatePath(`/${entity}`);
+		// ==================================================================
+		// 5. DONE
+		// ==================================================================
 
-		return {
-			updated: updates.length,
-		};
-	});
+		revalidatePath(`/${entity}`)
+
+		return { id: entityId }
+	})

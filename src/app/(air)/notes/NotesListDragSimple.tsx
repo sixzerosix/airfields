@@ -10,6 +10,9 @@ import { useEntityPagination } from "@/hooks/useEntityPagination";
 import { useEntityReorder } from "@/hooks/useEntityReorder";
 import type { Note } from "@/lib/schemas";
 import { CreateEntityInline } from "@/components/entity/CreateEntityInline";
+import { CreateEntityDialog } from "@/components/entity/CreateEntityDialog";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 	const rawItems = useEntityList("notes", initialNotes);
@@ -30,6 +33,43 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 	return (
 		<div className="max-w-3xl mx-auto p-4 space-y-4">
 			<h1 className="text-2xl font-bold">Notes</h1>
+			<CreateEntityDialog
+				entity="notes"
+				trigger={
+					<Button>
+						<Plus className="w-4 h-4 mr-2" />
+						New Note
+					</Button>
+				}
+				title="Create Note"
+				initialValues={{ status: "todo" }}
+				onSuccess={(id) => console.log("Created:", id)}
+			>
+				{(tempId) => (
+					<>
+						<EntityField
+							entity="notes"
+							entityId={tempId}
+							name="title"
+						/>
+						<EntityField
+							entity="notes"
+							entityId={tempId}
+							name="description"
+						/>
+						<EntityField
+							entity="notes"
+							entityId={tempId}
+							name="category_id"
+						/>
+						<EntityField
+							entity="notes"
+							entityId={tempId}
+							name="tags"
+						/>
+					</>
+				)}
+			</CreateEntityDialog>
 
 			<CreateEntityInline
 				entity="notes"
