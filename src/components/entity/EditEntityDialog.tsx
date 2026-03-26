@@ -78,7 +78,7 @@ export function EditEntityDialog<E extends EntityType>({
 	};
 
 	return (
-		<Dialog open={isOpen} onOpenChange={handleOpenChange}>
+		<Dialog modal={false} open={isOpen} onOpenChange={handleOpenChange}>
 			<DialogContent className={className}>
 				{title && (
 					<DialogHeader>

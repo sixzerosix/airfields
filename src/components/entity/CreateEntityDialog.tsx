@@ -76,10 +76,22 @@ export function CreateEntityDialog<E extends EntityType>({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={handleOpenChange}>
+		<Dialog modal={false} open={open} onOpenChange={handleOpenChange}>
 			<DialogTrigger asChild>{trigger}</DialogTrigger>
 
-			<DialogContent className="sm:max-w-[600px]">
+			<DialogContent
+				className="sm:max-w-[600px]"
+				onInteractOutside={(e) => {
+					const target = e.target as HTMLElement;
+					if (
+						target.closest("[data-radix-combobox-content]") ||
+						target.closest('[role="listbox"]') ||
+						target.closest('[role="option"]')
+					) {
+						e.preventDefault();
+					}
+				}}
+			>
 				<DialogHeader>
 					<DialogTitle>{title || `Create ${entity}`}</DialogTitle>
 					{description && (
