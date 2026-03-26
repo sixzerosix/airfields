@@ -1,8 +1,27 @@
 "use client";
 
+/**
+ * useEntityReorder v2 — Fractional Indexing
+ *
+ * npm install fractional-indexing
+ *
+ * При перетаскивании:
+ * - Вычисляет ОДИН новый ключ между соседями
+ * - Обновляет ОДНУ запись (перемещённую)
+ * - На 3000 записей: 1 UPDATE вместо 3000
+ *
+ * Принцип:
+ *   Positions: "a0"  "a1"  "a2"  "a3"
+ *   Drag a3 между a0 и a1:
+ *   → generateKeyBetween("a0", "a1") = "a0V"
+ *   → UPDATE notes SET position = "a0V" WHERE id = dragged_id
+ *   → Новый порядок: "a0" "a0V" "a1" "a2" (строковая сортировка)
+ */
+
 import { useState, useCallback, useRef } from "react";
+import { generateKeyBetween } from "fractional-indexing";
 import { useStore } from "@/lib/store";
-import { reorderEntitiesAction } from "@/actions/update-entity";
+import { updateEntityAction } from "@/actions/update-entity";
 import type { EntityType, EntityDataMap } from "@/lib/schemas";
 import { toast } from "sonner";
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
@@ -11,45 +30,21 @@ import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 // TYPES
 // ============================================================================
 
-export interface UseEntityReorderConfig {
-	/** Включён ли drag-and-drop @default false */
+interface UseEntityReorderConfig {
 	enabled?: boolean;
-
-	/** Callback после успешного reorder */
 	onSuccess?: () => void;
-
-	/** Callback при ошибке */
 	onError?: (error: string) => void;
 }
 
 export interface UseEntityReorderReturn {
-	/** Включён ли drag mode */
 	enabled: boolean;
-
-	/** Включить/выключить */
 	setEnabled: (enabled: boolean) => void;
-
-	/** Toggle */
 	toggle: () => void;
-
-	/** ID перетаскиваемого элемента (для overlay) */
 	activeId: string | null;
-
-	/** Обработчик начала drag */
 	handleDragStart: (event: DragStartEvent) => void;
-
-	/** Обработчик конца drag — основная логика reorder */
 	handleDragEnd: (event: DragEndEvent) => void;
-
-	/** Идёт ли сохранение */
 	isSaving: boolean;
-
-	/**
-	 * Применить сортировку по position к items.
-	 * Вызывай ВМЕСТО filters.applyTo() когда drag enabled,
-	 * или chain: drag enabled ? reorder.sortByPosition(items) : filters.applyTo(items)
-	 */
-	sortByPosition: <T extends { position?: number; created_at?: string }>(
+	sortByPosition: <T extends { position?: string | null; created_at?: string }>(
 		items: T[],
 	) => T[];
 }
@@ -58,27 +53,6 @@ export interface UseEntityReorderReturn {
 // HOOK
 // ============================================================================
 
-/**
- * useEntityReorder — drag-and-drop reordering для entity списков
- *
- * Логика (как в Notion/Linear):
- * 1. User перетаскивает элемент
- * 2. Optimistic: мгновенно обновляем positions в Store
- * 3. Batch update: отправляем новые positions на сервер
- * 4. При ошибке — откат
- *
- * @example
- * ```tsx
- * const reorder = useEntityReorder("notes", items);
- *
- * // В EntityListSortable:
- * <DndContext onDragStart={reorder.handleDragStart} onDragEnd={reorder.handleDragEnd}>
- *   <SortableContext items={itemIds}>
- *     {items.map(item => <SortableItem key={item.id} id={item.id} />)}
- *   </SortableContext>
- * </DndContext>
- * ```
- */
 export function useEntityReorder<E extends EntityType>(
 	entity: E,
 	items: EntityDataMap[E][],
@@ -90,8 +64,7 @@ export function useEntityReorder<E extends EntityType>(
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const [isSaving, setIsSaving] = useState(false);
 
-	// Backup для отката
-	const backupRef = useRef<Map<string, number>>(new Map());
+	const backupRef = useRef<{ id: string; position: string } | null>(null);
 
 	// ==========================================================================
 	// TOGGLE
@@ -100,20 +73,21 @@ export function useEntityReorder<E extends EntityType>(
 	const toggle = useCallback(() => setEnabled((prev) => !prev), []);
 
 	// ==========================================================================
-	// SORT BY POSITION
+	// SORT BY POSITION (string comparison)
 	// ==========================================================================
 
 	const sortByPosition = useCallback(
-		<T extends { position?: number; created_at?: string }>(
+		<T extends { position?: string | null; created_at?: string }>(
 			data: T[],
 		): T[] => {
 			return [...data].sort((a, b) => {
-				// Primary: position (asc)
-				const posA = a.position ?? Infinity;
-				const posB = b.position ?? Infinity;
-				if (posA !== posB) return posA - posB;
+				const posA = a.position ?? "";
+				const posB = b.position ?? "";
 
-				// Secondary: created_at (asc — старые выше)
+				// Primary: position (string sort — fractional indexing гарантирует порядок)
+				if (posA !== posB) return posA < posB ? -1 : 1;
+
+				// Secondary: created_at
 				const dateA = a.created_at ?? "";
 				const dateB = b.created_at ?? "";
 				return dateA < dateB ? -1 : dateA > dateB ? 1 : 0;
@@ -137,9 +111,9 @@ export function useEntityReorder<E extends EntityType>(
 			const { active, over } = event;
 			if (!over || active.id === over.id) return;
 
-			// Текущий порядок items (уже отсортированный по position)
-			const currentItems = sortByPosition(items);
-			const ids = currentItems.map((item) => (item as any).id as string);
+			// Текущий порядок (уже отсортированный по position)
+			const sorted = sortByPosition(items);
+			const ids = sorted.map((item) => (item as any).id as string);
 
 			const oldIndex = ids.indexOf(String(active.id));
 			const newIndex = ids.indexOf(String(over.id));
@@ -147,49 +121,62 @@ export function useEntityReorder<E extends EntityType>(
 			if (oldIndex === -1 || newIndex === -1) return;
 
 			// ================================================================
-			// НОВЫЙ ПОРЯДОК
+			// ВЫЧИСЛИТЬ НОВЫЙ FRACTIONAL KEY
 			// ================================================================
 
+			// Новый порядок IDs после перемещения
 			const newIds = [...ids];
-			const [moved] = newIds.splice(oldIndex, 1);
-			newIds.splice(newIndex, 0, moved);
+			const [movedId] = newIds.splice(oldIndex, 1);
+			newIds.splice(newIndex, 0, movedId);
+
+			// Найти соседей перемещённого элемента в новом порядке
+			const movedNewIndex = newIds.indexOf(movedId);
+
+			const prevItem = movedNewIndex > 0
+				? sorted.find((item) => (item as any).id === newIds[movedNewIndex - 1])
+				: null;
+
+			const nextItem = movedNewIndex < newIds.length - 1
+				? sorted.find((item) => (item as any).id === newIds[movedNewIndex + 1])
+				: null;
+
+			const prevKey = (prevItem as any)?.position ?? null;
+			const nextKey = (nextItem as any)?.position ?? null;
+
+			let newKey: string;
+			try {
+				newKey = generateKeyBetween(prevKey, nextKey);
+			} catch (err) {
+				console.error("[useEntityReorder] Failed to generate key:", err);
+				toast.error("Failed to reorder");
+				return;
+			}
 
 			// ================================================================
-			// OPTIMISTIC UPDATE — мгновенно обновляем Store
+			// OPTIMISTIC UPDATE — только 1 запись
 			// ================================================================
 
 			const store = useStore.getState();
-			const updates: { id: string; position: number }[] = [];
+			const currentPosition = (store.entities[entity]?.[movedId] as any)?.position;
 
-			// Сохраняем backup для отката
-			backupRef.current.clear();
+			// Backup для отката
+			backupRef.current = { id: movedId, position: currentPosition };
 
-			newIds.forEach((id, index) => {
-				const current = store.entities[entity]?.[id];
-				const currentPosition = (current as any)?.position;
-
-				// Запоминаем старую позицию
-				backupRef.current.set(id, currentPosition ?? index);
-
-				// Обновляем только если позиция изменилась
-				if (currentPosition !== index) {
-					store.updateField(entity, id, "position" as any, index);
-					updates.push({ id, position: index });
-				}
-			});
-
-			if (updates.length === 0) return;
+			// Обновляем Store
+			store.updateField(entity, movedId, "position" as any, newKey);
 
 			// ================================================================
-			// SERVER UPDATE — batch
+			// SERVER UPDATE — 1 запрос
 			// ================================================================
 
 			setIsSaving(true);
 
 			try {
-				const result = await reorderEntitiesAction({
+				const result = await updateEntityAction({
 					entity,
-					updates,
+					entityId: movedId,
+					field: "position",
+					value: newKey,
 				});
 
 				if (result?.serverError) {
@@ -200,16 +187,21 @@ export function useEntityReorder<E extends EntityType>(
 			} catch (error: any) {
 				console.error("[useEntityReorder] Error:", error);
 
-				// ОТКАТ — восстанавливаем старые позиции
-				const store = useStore.getState();
-				backupRef.current.forEach((oldPosition, id) => {
-					store.updateField(entity, id, "position" as any, oldPosition);
-				});
+				// ОТКАТ
+				if (backupRef.current) {
+					store.updateField(
+						entity,
+						backupRef.current.id,
+						"position" as any,
+						backupRef.current.position,
+					);
+				}
 
 				toast.error("Failed to save order");
 				onError?.(error.message);
 			} finally {
 				setIsSaving(false);
+				backupRef.current = null;
 			}
 		},
 		[entity, items, sortByPosition, onSuccess, onError],

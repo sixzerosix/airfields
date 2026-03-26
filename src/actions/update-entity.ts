@@ -235,26 +235,41 @@ const CreateEntitySchema = z.object({
 /**
  * Create Entity Action
  */
+// ============================================================================
+// ЗАМЕНИ createEntityAction В update-entity.ts
+// ============================================================================
+//
+// npm install fractional-indexing
+//
+// Изменение: генерирует fractional position key для новых записей.
+// Новая запись получает ключ ПОСЛЕ последнего элемента.
+// ============================================================================
+
+import { generateKeyBetween } from 'fractional-indexing'
+
 export const createEntityAction = actionClient
 	.inputSchema(CreateEntitySchema)
 	.action(async ({ parsedInput: { entity, data } }) => {
 		const supabase = await createServerSupabaseClient();
 
-		// ✅ Получаем user_id на сервере — клиент не может подменить
 		const { data: { user } } = await supabase.auth.getUser();
-		if (!user) {
-			throw new Error("Not authenticated");
-		}
+		if (!user) throw new Error("Not authenticated");
 
-		// ✅ Подставляем user_id из сессии
-		// Если position не передан — ставим в конец списка
+		// ✅ Генерируем position если не передан
 		let position = data.position;
-		if (position == null) {
-			const { count } = await supabase
+		if (!position) {
+			// Найти последний элемент (максимальный position)
+			const { data: lastItems } = await supabase
 				.from(entity)
-				.select("*", { count: "exact", head: true })
-				.eq("user_id", user.id);
-			position = count ?? 0;
+				.select("position")
+				.eq("user_id", user.id)
+				.order("position", { ascending: false })
+				.limit(1);
+
+			const lastKey = lastItems?.[0]?.position ?? null;
+
+			// Новый ключ ПОСЛЕ последнего
+			position = generateKeyBetween(lastKey, null);
 		}
 
 		const { data: records, error } = await supabase
@@ -272,10 +287,7 @@ export const createEntityAction = actionClient
 		}
 
 		const id = records?.[0]?.id ?? data.id;
-
-		if (!id) {
-			throw new Error("Created but could not retrieve ID");
-		}
+		if (!id) throw new Error("Created but could not retrieve ID");
 
 		revalidatePath(`/${entity}`);
 
