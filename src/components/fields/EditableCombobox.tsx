@@ -229,8 +229,8 @@ export function EditableCombobox<E extends EntityType>({
 	// HANDLE CHANGE
 	// ==========================================================================
 
-	const handleSelect = (label: string) => {
-		if (label === nullLabel) {
+	const handleSelect = (label: string | null) => {
+		if (label === null || label === nullLabel) {
 			handleChange(null);
 			return;
 		}
@@ -268,7 +268,7 @@ export function EditableCombobox<E extends EntityType>({
 					data-field={String(field)}
 				/>
 
-				<ComboboxContent>
+				<ComboboxContent className={"pointer-events-auto"}>
 					<ComboboxEmpty>No items found</ComboboxEmpty>
 					<ComboboxList>
 						{(item: string) => {

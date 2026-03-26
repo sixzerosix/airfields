@@ -12,9 +12,27 @@ import type { Note } from "@/lib/schemas";
 import { CreateEntityInline } from "@/components/entity/CreateEntityInline";
 import { CreateEntityDialog } from "@/components/entity/CreateEntityDialog";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import {
+	EllipsisVertical,
+	Pencil,
+	Plus,
+	SquareSplitVertical,
+} from "lucide-react";
+import { EditEntityDialog } from "@/components/entity/EditEntityDialog";
+import { DeleteEntityButton } from "@/components/entity/DeleteEntityButton";
+import { useState } from "react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
+	// ✅ ОДИН state для управления Dialog
+	const [editingId, setEditingId] = useState<string | null>(null);
+
 	const rawItems = useEntityList("notes", initialNotes);
 
 	const reorder = useEntityReorder("notes", rawItems, {
@@ -90,6 +108,16 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 							entityId={tempId}
 							name="description"
 						/>
+						<EntityField
+							entity="notes"
+							entityId={tempId}
+							name="category_id"
+						/>
+						<EntityField
+							entity="notes"
+							entityId={tempId}
+							name="tags"
+						/>
 					</div>
 				)}
 			</CreateEntityInline>
@@ -120,12 +148,111 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 								customProps={{ label: "" }}
 								className="min-w-[120px]"
 							/> */}
+
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										variant="ghost"
+										className="flex size-8 text-muted-foreground data-[state=open]:bg-muted"
+										size="icon"
+									>
+										<EllipsisVertical />
+										<span className="sr-only">
+											Open menu
+										</span>
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" className="">
+									<DropdownMenuItem asChild>
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={() =>
+												setEditingId(note.id)
+											}
+										>
+											<Pencil className="w-4 h-4" />{" "}
+											Редактировать
+										</Button>
+									</DropdownMenuItem>
+
+									<DropdownMenuItem
+										variant="destructive"
+										asChild
+									>
+										<DeleteEntityButton
+											entity="notes"
+											entityId={note.id}
+											confirm={false}
+											size="sm"
+											variant="ghost"
+											label="Удалить"
+										/>
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
 						</div>
 					</EntityEditor>
 				)}
 			</EntityListSortable>
 
 			<EntityPagination {...pagination} />
+
+			<EditEntityDialog
+				entity="notes"
+				entityId={editingId}
+				onClose={() => setEditingId(null)}
+				title="Edit Note"
+				footer={(id) => (
+					<div className="flex justify-between w-full">
+						{/* Delete — слева */}
+						<DeleteEntityButton
+							entity="notes"
+							entityId={id}
+							variant="outline"
+							size="sm"
+							confirmTitle="Delete this note?"
+							confirmDescription="This action cannot be undone."
+							onSuccess={() => setEditingId(null)}
+						/>
+
+						{/* Можно добавить другие кнопки справа */}
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => setEditingId(null)}
+						>
+							Close
+						</Button>
+					</div>
+				)}
+			>
+				{(id) => (
+					<>
+						<EntityField
+							entity="notes"
+							entityId={id}
+							name="title"
+						/>
+						<EntityField
+							entity="notes"
+							entityId={id}
+							name="description"
+						/>
+						<EntityField
+							entity="notes"
+							entityId={id}
+							name="status"
+						/>
+						<EntityField
+							entity="notes"
+							entityId={id}
+							name="category_id"
+						/>
+						<EntityField entity="notes" entityId={id} name="tags" />
+					</>
+				)}
+			</EditEntityDialog>
 		</div>
 	);
 }

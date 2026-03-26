@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { DraftContext } from "@/contexts/DraftContext";
 import { useEntityDraft } from "@/hooks/useEntityDraft";
 import type { EntityType, EntityDataMap } from "@/lib/schemas";
+import { preventPortaledClose } from "@/lib/preventPortaledClose";
 
 // ============================================================================
 // TYPES
@@ -76,21 +77,13 @@ export function CreateEntityDialog<E extends EntityType>({
 	};
 
 	return (
-		<Dialog modal={false} open={open} onOpenChange={handleOpenChange}>
+		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogTrigger asChild>{trigger}</DialogTrigger>
 
 			<DialogContent
 				className="sm:max-w-[600px]"
-				onInteractOutside={(e) => {
-					const target = e.target as HTMLElement;
-					if (
-						target.closest("[data-radix-combobox-content]") ||
-						target.closest('[role="listbox"]') ||
-						target.closest('[role="option"]')
-					) {
-						e.preventDefault();
-					}
-				}}
+				onPointerDownOutside={preventPortaledClose}
+				onInteractOutside={preventPortaledClose}
 			>
 				<DialogHeader>
 					<DialogTitle>{title || `Create ${entity}`}</DialogTitle>
