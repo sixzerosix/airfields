@@ -1,34 +1,5 @@
 "use client";
 
-/**
- * EntityPagination — универсальный UI пагинации
- *
- * 3 режима:
- * 1. pages     — классическая: [< 1 2 3 ... 24 >] + Rows per page
- * 2. loadMore  — кнопка "Show more"
- * 3. infinite  — авто-загрузка при скролле (sentinel div)
- *
- * Все части включаются/выключаются:
- * - showPageNumbers  — номера страниц
- * - showArrows       — стрелки вперёд/назад
- * - showPerPage      — "Rows per page" selector
- * - showInfo         — "1-25 of 100"
- * - showFirstLast    — первая/последняя страница
- *
- * USAGE:
- * ```tsx
- * const pagination = useEntityPagination({ mode: "pages", defaultPerPage: 25 });
- * const filtered = filters.applyTo(rawItems);
- * const paginated = pagination.paginate(filtered);
- *
- * <EntityList items={paginated} ...>
- *   {(item) => ...}
- * </EntityList>
- *
- * <EntityPagination {...pagination} />
- * ```
- */
-
 import { useMemo } from "react";
 import {
 	Pagination,
@@ -56,33 +27,15 @@ import { cn } from "@/lib/utils";
 // ============================================================================
 
 interface EntityPaginationProps extends UseEntityPaginationReturn {
-	/** Показывать номера страниц @default true */
 	showPageNumbers?: boolean;
-
-	/** Показывать стрелки ←→ @default true */
 	showArrows?: boolean;
-
-	/** Показывать "Rows per page" @default true */
 	showPerPage?: boolean;
-
-	/** Показывать "1-25 of 100" @default true */
 	showInfo?: boolean;
-
-	/** Показывать первую/последнюю страницу @default true */
 	showFirstLast?: boolean;
-
-	/** Макс. видимых номеров страниц @default 5 */
 	maxVisiblePages?: number;
-
-	/** Текст кнопки "Load more" @default "Show more" */
 	loadMoreText?: string;
-
-	/** Показывать спиннер при загрузке (для loadMore/infinite) */
 	isLoading?: boolean;
-
-	/** Label для "Rows per page" */
 	perPageLabel?: string;
-
 	className?: string;
 }
 
@@ -132,7 +85,6 @@ export function EntityPagination({
 					className,
 				)}
 			>
-				{/* Left: Per page selector */}
 				{showPerPage && (
 					<div className="flex items-center gap-2">
 						<span className="text-sm text-muted-foreground whitespace-nowrap">
@@ -156,10 +108,8 @@ export function EntityPagination({
 					</div>
 				)}
 
-				{/* Center: Page numbers */}
 				<Pagination className="mx-0 w-auto">
 					<PaginationContent>
-						{/* Prev arrow */}
 						{showArrows && (
 							<PaginationItem>
 								<PaginationPrevious
@@ -178,7 +128,6 @@ export function EntityPagination({
 							</PaginationItem>
 						)}
 
-						{/* Page numbers */}
 						{showPageNumbers && (
 							<PageNumbers
 								page={page}
@@ -189,7 +138,6 @@ export function EntityPagination({
 							/>
 						)}
 
-						{/* Next arrow */}
 						{showArrows && (
 							<PaginationItem>
 								<PaginationNext
@@ -210,7 +158,6 @@ export function EntityPagination({
 					</PaginationContent>
 				</Pagination>
 
-				{/* Right: Info */}
 				{showInfo && (
 					<span className="text-sm text-muted-foreground whitespace-nowrap">
 						{totalItems === 0
@@ -246,7 +193,6 @@ export function EntityPagination({
 						{loadMoreText}
 					</Button>
 				)}
-
 				{showInfo && (
 					<span className="text-xs text-muted-foreground">
 						Showing {endIndex} of {totalItems}
@@ -268,13 +214,11 @@ export function EntityPagination({
 					className,
 				)}
 			>
-				{/* Sentinel — IntersectionObserver target */}
 				{hasNextPage && (
 					<div ref={sentinelRef} className="h-10 flex items-center">
 						<Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
 					</div>
 				)}
-
 				{showInfo && (
 					<span className="text-xs text-muted-foreground">
 						{hasNextPage
@@ -290,16 +234,18 @@ export function EntityPagination({
 }
 
 // ============================================================================
-// PAGE NUMBERS — smart display with ellipsis
+// ✅ FIXED PAGE NUMBERS — correct ellipsis logic
 // ============================================================================
 //
-// Examples (maxVisible=5):
-//   page 1:  [1] 2 3 ... 24
-//   page 2:  1 [2] 3 ... 24
-//   page 3:  1 2 [3] 4 ... 24
-//   page 12: 1 ... 11 [12] 13 ... 24
-//   page 23: 1 ... 22 [23] 24
-//   page 24: 1 ... 22 23 [24]
+// maxVisible=5:
+//   totalPages=5:   1  2  3  4  5           ← все видны, нет ellipsis
+//   totalPages=6:   1  2  3  ...  6         ← ellipsis появляется
+//   totalPages=20:
+//     page 1:   [1]  2  3  ...  20
+//     page 3:    1   2  [3]  4  ...  20
+//     page 10:   1  ...  9  [10]  11  ...  20
+//     page 19:   1  ...  18  [19]  20
+//     page 20:   1  ...  18  19  [20]
 
 function PageNumbers({
 	page,
@@ -315,28 +261,34 @@ function PageNumbers({
 	onPageChange: (p: number) => void;
 }) {
 	const pages = useMemo(() => {
-		if (totalPages <= maxVisible + 2) {
-			// Show all pages
+		// ✅ FIX: показываем все только если totalPages <= maxVisible
+		// БЫЛО: totalPages <= maxVisible + 2  ← слишком щедро
+		if (totalPages <= maxVisible) {
 			return Array.from({ length: totalPages }, (_, i) => i + 1);
 		}
 
 		const result: (number | "ellipsis-start" | "ellipsis-end")[] = [];
 
-		// Always show first page
+		// Сколько "средних" страниц показывать (без first/last)
+		const middleSlots = showFirstLast ? maxVisible - 2 : maxVisible;
+		const halfMiddle = Math.floor(middleSlots / 2);
+
+		// First page
 		if (showFirstLast) result.push(1);
 
-		// Calculate window around current page
-		const halfWindow = Math.floor((maxVisible - 2) / 2);
-		let windowStart = Math.max(2, page - halfWindow);
-		let windowEnd = Math.min(totalPages - 1, page + halfWindow);
+		// Window around current page
+		let windowStart = Math.max(2, page - halfMiddle);
+		let windowEnd = Math.min(totalPages - 1, page + halfMiddle);
 
-		// Adjust if near edges
-		if (page <= halfWindow + 2) {
-			windowEnd = Math.min(totalPages - 1, maxVisible - 1);
+		// Adjust window at edges
+		if (page - halfMiddle <= 2) {
+			// Near start
 			windowStart = 2;
-		} else if (page >= totalPages - halfWindow - 1) {
-			windowStart = Math.max(2, totalPages - maxVisible + 2);
+			windowEnd = Math.min(totalPages - 1, 2 + middleSlots - 1);
+		} else if (page + halfMiddle >= totalPages - 1) {
+			// Near end
 			windowEnd = totalPages - 1;
+			windowStart = Math.max(2, totalPages - 1 - middleSlots + 1);
 		}
 
 		// Ellipsis before window
@@ -354,7 +306,7 @@ function PageNumbers({
 			result.push("ellipsis-end");
 		}
 
-		// Always show last page
+		// Last page
 		if (showFirstLast) result.push(totalPages);
 
 		return result;

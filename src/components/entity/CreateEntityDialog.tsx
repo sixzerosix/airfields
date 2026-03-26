@@ -62,6 +62,7 @@ export function CreateEntityDialog<E extends EntityType>({
 		initialValues,
 		onSuccess: (id) => {
 			setOpen(false);
+			reset();
 			onSuccess?.(id);
 		},
 		onError,
