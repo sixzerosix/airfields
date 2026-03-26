@@ -112,6 +112,14 @@ export async function EntityPage<E extends EntityType>({
 	// ==========================================================================
 
 	if (error) {
+		// .single() возвращает ошибку когда 0 строк — это не ошибка, это "not found"
+		if (error.code === "PGRST116") {
+			if (notFoundFallback) return <>{notFoundFallback}</>;
+			return notFound();
+		}
+
+		console.error(`[EntityPage] Error loading ${entity}:${id}`, error);
+
 		console.error(`[EntityPage] Error loading ${entity}:${id}`, error);
 
 		if (errorFallback) {

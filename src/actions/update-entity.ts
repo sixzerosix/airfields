@@ -259,17 +259,15 @@ export const createEntityAction = actionClient
 		let position = data.position;
 		if (!position) {
 			// Найти последний элемент (максимальный position)
-			const { data: lastItems } = await supabase
+			const { data: firstItems } = await supabase
 				.from(entity)
 				.select("position")
 				.eq("user_id", user.id)
-				.order("position", { ascending: false })
+				.order("position", { ascending: true })  // первый
 				.limit(1);
 
-			const lastKey = lastItems?.[0]?.position ?? null;
-
-			// Новый ключ ПОСЛЕ последнего
-			position = generateKeyBetween(lastKey, null);
+			const firstKey = firstItems?.[0]?.position ?? null;
+			position = generateKeyBetween(null, firstKey);  // ПЕРЕД первым
 		}
 
 		const { data: records, error } = await supabase
