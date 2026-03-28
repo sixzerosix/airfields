@@ -640,3 +640,9 @@ WHERE
 -- =============================================
 -- ГОТОВО!
 -- =============================================
+ALTER TABLE
+	notes
+ADD
+	COLUMN is_favorite boolean NOT NULL DEFAULT false;
+
+CREATE INDEX idx_notes_favorite ON notes (user_id, is_favorite);

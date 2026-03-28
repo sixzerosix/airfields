@@ -36,6 +36,13 @@ export interface UseEntityFiltersConfig {
 	filterFields?: FilterFieldConfig[];
 	sortFields?: { field: string; label: string }[];
 	defaultSort?: SortConfig;
+
+	/**
+	 * Поля приоритезации — записи с true всегда вверху.
+	 * Порядок массива = порядок приоритета.
+	 * Пример: ["is_favorite", "is_pinned"] — сначала pinned, потом favorite, потом остальные.
+	 */
+	priorityFields?: string[];
 }
 
 export interface UseEntityFiltersReturn {
@@ -123,6 +130,7 @@ export function useEntityFilters(
 		filterFields = [],
 		sortFields = [],
 		defaultSort = { field: "created_at", direction: "desc" },
+		priorityFields = [],
 	} = config;
 
 	// ==========================================================================
@@ -147,12 +155,11 @@ export function useEntityFilters(
 	);
 
 	// ==========================================================================
-	// FILTERS STATE — парсится из URL один раз при mount
+	// FILTERS STATE
 	// ==========================================================================
 
 	const [filters, setFiltersState] = useState<Record<string, FilterValue>>({});
 
-	// ✅ Один useEffect, один раз при mount — без version хака
 	useEffect(() => {
 		setFiltersState(parseFiltersFromUrl(filterFields));
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,7 +198,7 @@ export function useEntityFilters(
 	);
 
 	// ==========================================================================
-	// ACTIONS — ✅ никаких setSearchRaw((prev) => prev) хаков
+	// ACTIONS
 	// ==========================================================================
 
 	const setSearch = useCallback(
@@ -207,7 +214,6 @@ export function useEntityFilters(
 		[setSortField, setSortDir],
 	);
 
-	// ✅ setFilter обновляет URL + state напрямую. Без хаков.
 	const setFilter = useCallback(
 		(field: string, value: FilterValue | null) => {
 			const fc = filterFields.find((f) => f.field === field);
@@ -228,7 +234,6 @@ export function useEntityFilters(
 		[filterFields, updateFilterInUrl],
 	);
 
-	// ✅ clearFilters — URL cleanup + setState. Без хаков.
 	const clearFilters = useCallback(() => {
 		const url = new URL(window.location.href);
 		for (const { field } of filterFields) {
@@ -242,7 +247,6 @@ export function useEntityFilters(
 		setFiltersState({});
 	}, [filterFields]);
 
-	// ✅ clearAll — nuqs для search/sort + clearFilters для остального
 	const clearAll = useCallback(() => {
 		setSearchRaw(null);
 		setSortField(null);
@@ -265,6 +269,7 @@ export function useEntityFilters(
 		<T extends Record<string, any>>(items: T[]): T[] => {
 			let result = [...items];
 
+			// --- Search ---
 			if (search.trim()) {
 				const s = search.toLowerCase().trim();
 				const textFields = filterFields.filter((f) => f.type === "text").map((f) => f.field);
@@ -277,12 +282,23 @@ export function useEntityFilters(
 				});
 			}
 
+			// --- Field filters ---
 			for (const [field, filter] of Object.entries(filters)) {
 				result = result.filter((item) => matchFilter(item[field], filter));
 			}
 
+			// --- ОДИН sort: priority → main sort ---
 			result.sort((a, b) => {
-				const aV = a[sortField], bV = b[sortField];
+				// 1. Priority fields (is_favorite, is_pinned, etc.)
+				for (const pf of priorityFields) {
+					const aP = a[pf] ? 1 : 0;
+					const bP = b[pf] ? 1 : 0;
+					if (aP !== bP) return bP - aP; // true first
+				}
+
+				// 2. Main sort
+				const aV = a[sortField];
+				const bV = b[sortField];
 				if (aV == null && bV == null) return 0;
 				if (aV == null) return sortDir === "desc" ? 1 : -1;
 				if (bV == null) return sortDir === "desc" ? -1 : 1;
@@ -292,7 +308,7 @@ export function useEntityFilters(
 
 			return result;
 		},
-		[filters, sortField, sortDir, search, filterFields],
+		[filters, sortField, sortDir, search, filterFields, priorityFields],
 	);
 
 	const enrichedFilterFields = useMemo(

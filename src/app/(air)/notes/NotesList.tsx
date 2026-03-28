@@ -130,6 +130,7 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 			{ field: "status", label: "Status" },
 		],
 		defaultSort: { field: "created_at", direction: "desc" },
+		priorityFields: ["is_favorite"],
 	});
 
 	// const pagination = useEntityPagination({
@@ -250,6 +251,13 @@ export function NotesList({ initialNotes }: { initialNotes: Note[] }) {
 									{note.description}
 								</div>
 							</Link>
+
+							<EntityField
+								entity="notes"
+								entityId={note.id}
+								name="is_favorite"
+								customProps={{ label: "" }}
+							/>
 
 							{/* ✅ Только статус — редактируемый */}
 							<EntityField

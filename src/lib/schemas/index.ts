@@ -17,6 +17,7 @@ export type EntityDataMap = {
 		description: string | null
 		status: 'todo' | 'in_progress' | 'review' | 'done' | 'archived'
 		category_id: string | null
+		is_favorite: boolean
 		created_at: string
 		updated_at: string
 	}
@@ -31,8 +32,9 @@ export const FieldSchemas = {
 		title: z.string().min(1, 'Заголовок обязателен').max(200),
 		description: z.string().max(5000, 'Слишком длинное описание').nullable().optional(),
 		status: z.enum(['todo', 'in_progress', 'review', 'done', 'archived']),
-		category_id: z.string().uuid().nullable().optional(),
+		category_id: z.uuid().nullable().optional(),
 		tags: z.array(z.string()).optional(),
+		is_favorite: z.boolean(),
 	},
 } as const
 
@@ -78,5 +80,10 @@ export function validateField<E extends EntityType>(
 		return { success: false, error: 'Unknown validation error' }
 	}
 }
+
+// ============================================================================
+// ЭКСПОРТ ТИПОВ
+// ============================================================================
+
 
 export type Note = EntityDataMap['notes']

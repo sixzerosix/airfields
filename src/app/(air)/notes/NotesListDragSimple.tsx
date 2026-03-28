@@ -37,6 +37,7 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 
 	const reorder = useEntityReorder("notes", rawItems, {
 		enabled: true, // ← сразу включён
+		priorityFields: ["is_favorite"], // ← добавь
 	});
 
 	const sorted = reorder.sortByPosition(rawItems);
@@ -149,6 +150,12 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 								className="min-w-[120px]"
 							/> */}
 
+							<EntityField
+								entity="notes"
+								entityId={note.id}
+								name="is_favorite"
+								customProps={{ label: "" }}
+							/>
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
 									<Button
@@ -162,6 +169,7 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 										</span>
 									</Button>
 								</DropdownMenuTrigger>
+
 								<DropdownMenuContent align="end" className="">
 									<DropdownMenuItem asChild>
 										<Button

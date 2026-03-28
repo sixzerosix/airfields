@@ -9,13 +9,6 @@
  * - Вычисляет ОДИН новый ключ между соседями
  * - Обновляет ОДНУ запись (перемещённую)
  * - На 3000 записей: 1 UPDATE вместо 3000
- *
- * Принцип:
- *   Positions: "a0"  "a1"  "a2"  "a3"
- *   Drag a3 между a0 и a1:
- *   → generateKeyBetween("a0", "a1") = "a0V"
- *   → UPDATE notes SET position = "a0V" WHERE id = dragged_id
- *   → Новый порядок: "a0" "a0V" "a1" "a2" (строковая сортировка)
  */
 
 import { useState, useCallback, useRef } from "react";
@@ -32,6 +25,7 @@ import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 
 interface UseEntityReorderConfig {
 	enabled?: boolean;
+	priorityFields?: string[];
 	onSuccess?: () => void;
 	onError?: (error: string) => void;
 }
@@ -44,9 +38,7 @@ export interface UseEntityReorderReturn {
 	handleDragStart: (event: DragStartEvent) => void;
 	handleDragEnd: (event: DragEndEvent) => void;
 	isSaving: boolean;
-	sortByPosition: <T extends { position?: string | null; created_at?: string }>(
-		items: T[],
-	) => T[];
+	sortByPosition: <T extends Record<string, any>>(items: T[]) => T[];
 }
 
 // ============================================================================
@@ -58,7 +50,12 @@ export function useEntityReorder<E extends EntityType>(
 	items: EntityDataMap[E][],
 	config: UseEntityReorderConfig = {},
 ): UseEntityReorderReturn {
-	const { enabled: initialEnabled = false, onSuccess, onError } = config;
+	const {
+		enabled: initialEnabled = false,
+		priorityFields = [],
+		onSuccess,
+		onError,
+	} = config;
 
 	const [enabled, setEnabled] = useState(initialEnabled);
 	const [activeId, setActiveId] = useState<string | null>(null);
@@ -73,27 +70,31 @@ export function useEntityReorder<E extends EntityType>(
 	const toggle = useCallback(() => setEnabled((prev) => !prev), []);
 
 	// ==========================================================================
-	// SORT BY POSITION (string comparison)
+	// SORT BY POSITION (с priority)
 	// ==========================================================================
 
 	const sortByPosition = useCallback(
-		<T extends { position?: string | null; created_at?: string }>(
-			data: T[],
-		): T[] => {
+		<T extends Record<string, any>>(data: T[]): T[] => {
 			return [...data].sort((a, b) => {
+				// 1. Priority fields
+				for (const pf of priorityFields) {
+					const aP = a[pf] ? 1 : 0;
+					const bP = b[pf] ? 1 : 0;
+					if (aP !== bP) return bP - aP;
+				}
+
+				// 2. Position
 				const posA = a.position ?? "";
 				const posB = b.position ?? "";
-
-				// Primary: position (string sort — fractional indexing гарантирует порядок)
 				if (posA !== posB) return posA < posB ? -1 : 1;
 
-				// Secondary: created_at
+				// 3. Created
 				const dateA = a.created_at ?? "";
 				const dateB = b.created_at ?? "";
 				return dateA < dateB ? -1 : dateA > dateB ? 1 : 0;
 			});
 		},
-		[],
+		[priorityFields],
 	);
 
 	// ==========================================================================
@@ -111,63 +112,90 @@ export function useEntityReorder<E extends EntityType>(
 			const { active, over } = event;
 			if (!over || active.id === over.id) return;
 
-			// Текущий порядок (уже отсортированный по position)
-			const sorted = sortByPosition(items);
-			const ids = sorted.map((item) => (item as any).id as string);
+			// ==============================================================
+			// ВИЗУАЛЬНЫЙ порядок (с priority) — то что user видит на экране
+			// ==============================================================
 
-			const oldIndex = ids.indexOf(String(active.id));
-			const newIndex = ids.indexOf(String(over.id));
+			const visualSorted = sortByPosition(items);
+			const visualIds = visualSorted.map(
+				(item) => (item as any).id as string,
+			);
+
+			const oldIndex = visualIds.indexOf(String(active.id));
+			const newIndex = visualIds.indexOf(String(over.id));
 
 			if (oldIndex === -1 || newIndex === -1) return;
 
-			// ================================================================
-			// ВЫЧИСЛИТЬ НОВЫЙ FRACTIONAL KEY
-			// ================================================================
+			// Новый визуальный порядок после перемещения
+			const newVisualIds = [...visualIds];
+			const [movedId] = newVisualIds.splice(oldIndex, 1);
+			newVisualIds.splice(newIndex, 0, movedId);
 
-			// Новый порядок IDs после перемещения
-			const newIds = [...ids];
-			const [movedId] = newIds.splice(oldIndex, 1);
-			newIds.splice(newIndex, 0, movedId);
+			const movedNewIndex = newVisualIds.indexOf(movedId);
 
-			// Найти соседей перемещённого элемента в новом порядке
-			const movedNewIndex = newIds.indexOf(movedId);
+			// ==============================================================
+			// Находим соседей и их position ключи
+			// ==============================================================
 
-			const prevItem = movedNewIndex > 0
-				? sorted.find((item) => (item as any).id === newIds[movedNewIndex - 1])
+			const prevId =
+				movedNewIndex > 0 ? newVisualIds[movedNewIndex - 1] : null;
+			const nextId =
+				movedNewIndex < newVisualIds.length - 1
+					? newVisualIds[movedNewIndex + 1]
+					: null;
+
+			const prevKey = prevId
+				? ((items.find((i) => (i as any).id === prevId) as any)
+					?.position ?? null)
+				: null;
+			const nextKey = nextId
+				? ((items.find((i) => (i as any).id === nextId) as any)
+					?.position ?? null)
 				: null;
 
-			const nextItem = movedNewIndex < newIds.length - 1
-				? sorted.find((item) => (item as any).id === newIds[movedNewIndex + 1])
-				: null;
+			// ==============================================================
+			// ✅ SAFE KEY: priority sort может нарушить position порядок
+			// Пример: favorite с position "a6G" визуально перед "a5"
+			// → prevKey="a6G" >= nextKey="a5" → generateKeyBetween падает
+			// Решение: использовать только одного соседа
+			// ==============================================================
 
-			const prevKey = (prevItem as any)?.position ?? null;
-			const nextKey = (nextItem as any)?.position ?? null;
+			let safePrevKey = prevKey;
+			let safeNextKey = nextKey;
+
+			if (safePrevKey && safeNextKey && safePrevKey >= safeNextKey) {
+				// Priority нарушил порядок — берём только nextKey
+				safePrevKey = null;
+			}
 
 			let newKey: string;
 			try {
-				newKey = generateKeyBetween(prevKey, nextKey);
+				newKey = generateKeyBetween(safePrevKey, safeNextKey);
 			} catch (err) {
-				console.error("[useEntityReorder] Failed to generate key:", err);
+				console.error(
+					"[useEntityReorder] Failed to generate key:",
+					err,
+				);
 				toast.error("Failed to reorder");
 				return;
 			}
 
-			// ================================================================
+			// ==============================================================
 			// OPTIMISTIC UPDATE — только 1 запись
-			// ================================================================
+			// ==============================================================
 
 			const store = useStore.getState();
-			const currentPosition = (store.entities[entity]?.[movedId] as any)?.position;
+			const currentPosition = (
+				store.entities[entity]?.[movedId] as any
+			)?.position;
 
-			// Backup для отката
 			backupRef.current = { id: movedId, position: currentPosition };
 
-			// Обновляем Store
 			store.updateField(entity, movedId, "position" as any, newKey);
 
-			// ================================================================
+			// ==============================================================
 			// SERVER UPDATE — 1 запрос
-			// ================================================================
+			// ==============================================================
 
 			setIsSaving(true);
 
@@ -187,7 +215,6 @@ export function useEntityReorder<E extends EntityType>(
 			} catch (error: any) {
 				console.error("[useEntityReorder] Error:", error);
 
-				// ОТКАТ
 				if (backupRef.current) {
 					store.updateField(
 						entity,

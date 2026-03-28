@@ -11,7 +11,8 @@ import { EditableTextarea } from "@/components/fields/EditableTextarea";
 import { EditableSelect } from "@/components/fields/EditableSelect";
 import { EditableTags } from "@/components/fields/EditableTags";
 import { EditableCombobox } from "@/components/fields/EditableCombobox";
-
+import { EditableToggle } from "@/components/fields/EditableToggle";
+import { BookmarkIcon, Star } from "lucide-react";
 import type { EntityType } from "./schemas";
 import type { ComponentType } from "react";
 
@@ -140,6 +141,19 @@ export const EntityRegistry: Registry = {
 					nullLabel: "Без категории",
 				},
 				// Нет relation — это обычное FK поле на notes, не M2M
+			},
+
+			is_favorite: {
+				component: EditableToggle,
+				label: "", // label не нужен сверху, текст внутри toggle
+				saveMode: "auto",
+				props: {
+					icon: <Star className="h-4 w-4" />,
+					activeIcon: <Star className="h-4 w-4 fill-current" />,
+					label: "Bookmark",
+					size: "sm",
+					variant: "outline",
+				},
 			},
 
 			// ============================================================
