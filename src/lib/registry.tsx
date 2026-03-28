@@ -12,7 +12,14 @@ import { EditableSelect } from "@/components/fields/EditableSelect";
 import { EditableTags } from "@/components/fields/EditableTags";
 import { EditableCombobox } from "@/components/fields/EditableCombobox";
 import { EditableToggle } from "@/components/fields/EditableToggle";
-import { BookmarkIcon, Star } from "lucide-react";
+import {
+	BookmarkIcon,
+	FireExtinguisherIcon,
+	Flame,
+	Fuel,
+	FuelIcon,
+	Star,
+} from "lucide-react";
 import type { EntityType } from "./schemas";
 import type { ComponentType } from "react";
 
@@ -148,11 +155,13 @@ export const EntityRegistry: Registry = {
 				label: "", // label не нужен сверху, текст внутри toggle
 				saveMode: "auto",
 				props: {
-					icon: <Star className="h-4 w-4" />,
-					activeIcon: <Star className="h-4 w-4 fill-current" />,
+					icon: <Flame className="h-4 w-4" />,
+					activeIcon: (
+						<Flame className="h-4 w-4 stroke-orange-600 fill-amber-600" />
+					),
 					label: "Bookmark",
 					size: "sm",
-					variant: "outline",
+					variant: "ghost",
 				},
 			},
 

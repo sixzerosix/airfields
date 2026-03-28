@@ -34,7 +34,6 @@ import {
 } from "@/components/ui/dialog";
 import { EntityEditor } from "@/components/entity/EntityEditor";
 import type { EntityType } from "@/lib/schemas";
-import { preventPortaledClose } from "@/lib/preventPortaledClose";
 
 // ============================================================================
 // TYPES
@@ -80,11 +79,7 @@ export function EditEntityDialog<E extends EntityType>({
 
 	return (
 		<Dialog open={isOpen} onOpenChange={handleOpenChange}>
-			<DialogContent
-				className={className}
-				onPointerDownOutside={preventPortaledClose}
-				onInteractOutside={preventPortaledClose}
-			>
+			<DialogContent className={className}>
 				{title && (
 					<DialogHeader>
 						<DialogTitle>{title}</DialogTitle>

@@ -206,7 +206,7 @@ function SortableItem({ id, children, showHandle }: SortableItemProps) {
 			className={cn("relative", isDragging && "z-50 opacity-50")}
 			{...(!showHandle ? { ...attributes, ...listeners } : {})}
 		>
-			<div className="flex items-center gap-3 p-3 border rounded-lg">
+			<div className="flex items-center gap-3 p-3 border rounded-lg has-[.is-favorite]:border-amber-600/30">
 				{/* Drag handle */}
 				{showHandle && (
 					<button

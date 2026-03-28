@@ -140,10 +140,7 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 						entity="notes"
 						entityId={note.id}
 						initialData={note}
-						className={
-							(note.is_favorite && "group-hover:text-blue-600") ||
-							""
-						}
+						className={(note.is_favorite && "is-favorite") || ""}
 					>
 						<div className="flex items-center gap-3">
 							<Link href={`/notes/${note.id}`} className="flex-1">

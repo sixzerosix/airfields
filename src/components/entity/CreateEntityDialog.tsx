@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { DraftContext } from "@/contexts/DraftContext";
 import { useEntityDraft } from "@/hooks/useEntityDraft";
 import type { EntityType, EntityDataMap } from "@/lib/schemas";
-import { preventPortaledClose } from "@/lib/preventPortaledClose";
 
 // ============================================================================
 // TYPES
@@ -80,11 +79,7 @@ export function CreateEntityDialog<E extends EntityType>({
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogTrigger asChild>{trigger}</DialogTrigger>
 
-			<DialogContent
-				className="sm:max-w-[600px]"
-				onPointerDownOutside={preventPortaledClose}
-				onInteractOutside={preventPortaledClose}
-			>
+			<DialogContent className="sm:max-w-[600px]">
 				<DialogHeader>
 					<DialogTitle>{title || `Create ${entity}`}</DialogTitle>
 					{description && (

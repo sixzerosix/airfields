@@ -37,7 +37,10 @@ export function EntityField<E extends EntityType>({
 	// ========================================================================
 
 	const storeValue = useStore(
-		(state) => selectEntity(state, entity, entityId)?.[name as string],
+		(state) =>
+			selectEntity(state, entity, entityId)?.[
+				name as keyof EntityDataMap[E]
+			],
 	);
 
 	const currentValue = storeValue ?? value;
@@ -107,7 +110,7 @@ export function EntityField<E extends EntityType>({
 	};
 
 	return (
-		<div className={className}>
+		<div data-test className={className}>
 			<Component {...mergedProps} />
 		</div>
 	);
