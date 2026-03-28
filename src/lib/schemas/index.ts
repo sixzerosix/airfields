@@ -18,6 +18,7 @@ export type EntityDataMap = {
 		status: 'todo' | 'in_progress' | 'review' | 'done' | 'archived'
 		category_id: string | null
 		tags: string[]
+		files: string[]
 		is_favorite: boolean
 		created_at: string
 		updated_at: string
@@ -36,6 +37,7 @@ export const FieldSchemas = {
 		category_id: z.uuid().nullable().optional(),
 		tags: z.array(z.string()).optional(),
 		is_favorite: z.boolean(),
+		files: z.array(z.string()).optional(),
 	},
 } as const
 

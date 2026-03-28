@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { EntityType } from "./schemas";
 import type { ComponentType } from "react";
+import { EditableFiles } from "@/components/fields/EditableFiles";
 
 // ============================================================================
 // TYPES
@@ -162,6 +163,30 @@ export const EntityRegistry: Registry = {
 					label: "Bookmark",
 					size: "sm",
 					variant: "ghost",
+				},
+			},
+
+			files: {
+				component: EditableFiles,
+				label: "Файлы",
+				relation: {
+					type: "m2m",
+					junctionTable: "entity_files",
+					foreignKey: "file_id",
+					polymorphic: true,
+				},
+				props: {
+					accept: [
+						"image/*",
+						"application/pdf",
+						".doc",
+						".docx",
+						".xls",
+						".xlsx",
+					],
+					maxSizeMB: 10,
+					maxFiles: 10,
+					variant: "card",
 				},
 			},
 

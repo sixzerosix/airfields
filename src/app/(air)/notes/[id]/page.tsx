@@ -6,6 +6,9 @@ import { EntityPage } from "@/components/entity/EntityPage";
 import { EntityEditor } from "@/components/entity/EntityEditor";
 import { EntityField } from "@/components/entity/EntityField";
 import { DeleteEntityButton } from "@/components/entity/DeleteEntityButton";
+import { EditableFiles } from "@/components/fields/EditableFiles";
+import { Button } from "@/components/ui/button";
+import { Paperclip } from "lucide-react";
 
 interface PageProps {
 	params: Promise<{ id: string }>;
@@ -53,6 +56,63 @@ export default async function PageNote({ params }: PageProps) {
 								entityId={note.id}
 								name="tags"
 							/>
+
+							{/* <EntityField
+								entity="notes"
+								entityId={note.id}
+								name="files"
+							/> */}
+
+							<EditableFiles
+								entity="notes"
+								entityId={note.id}
+								field="files"
+								label="Файлы"
+								variant="compact"
+								maxFiles={5}
+							/>
+
+							{/* <EditableFiles
+								entity="notes"
+								entityId={note.id}
+								field="files"
+								label="Documents"
+								variant="list"
+								accept={["application/pdf", ".doc", ".docx"]}
+							/>
+
+							<EditableFiles
+								entity="notes"
+								entityId={note.id}
+								field="files"
+								label="Файлы"
+								variant="compact"
+								maxFiles={5}
+							/>
+
+							<div className="toolbar">
+								<EditableFiles
+									entity="notes"
+									entityId={note.id}
+									field="files"
+									variant="trigger"
+									trigger={
+										<Button size="sm">
+											<Paperclip /> Attach
+										</Button>
+									}
+								/>
+							</div>
+
+							<div className="content">
+								
+								<EditableFiles
+									entity="notes"
+									entityId={note.id}
+									field="files"
+									variant="card"
+								/>
+							</div> */}
 
 							{/* ✅ Delete из ЭТОЙ вкладки — свой redirect */}
 							<DeleteEntityButton

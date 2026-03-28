@@ -191,6 +191,10 @@ export function EditableTags<E extends EntityType>({
 					// НЕТ filter — Supabase не фильтрует DELETE по OLD values
 				},
 				(payload) => {
+					console.log(
+						"[Realtime] payload:",
+						JSON.stringify(payload, null, 2),
+					);
 					const currentEntityId = entityIdRef.current;
 
 					if (payload.eventType === "INSERT") {
@@ -207,16 +211,20 @@ export function EditableTags<E extends EntityType>({
 							);
 						}
 					} else if (payload.eventType === "DELETE") {
-						const row = payload.old as any;
-						// Проверяем что это наша сущность
-						if (
-							row.entity_type === entity &&
-							row.entity_id === currentEntityId
-						) {
-							setSelectedTagIds((prev) =>
-								prev.filter((id) => id !== row.tag_id),
-							);
-						}
+						// Тихий refetch — без isLoading, без мерцания
+						const supabase = getSupabaseClient();
+						supabase
+							.from("entity_tags")
+							.select("tag_id")
+							.eq("entity_type", entity)
+							.eq("entity_id", entityIdRef.current)
+							.then(({ data }) => {
+								if (data) {
+									setSelectedTagIds(
+										data.map((et) => et.tag_id),
+									);
+								}
+							});
 					}
 				},
 			)
@@ -233,7 +241,13 @@ export function EditableTags<E extends EntityType>({
 					table: "tags",
 				},
 				(payload) => {
+					console.log(
+						"[Realtime] payload:",
+						JSON.stringify(payload, null, 2),
+					);
+
 					const newTag = payload.new as Tag & { entity_type: string };
+
 					if (newTag.entity_type === entity) {
 						setAllTags((prev) =>
 							prev.some((t) => t.id === newTag.id)
