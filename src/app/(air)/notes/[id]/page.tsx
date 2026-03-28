@@ -9,6 +9,7 @@ import { DeleteEntityButton } from "@/components/entity/DeleteEntityButton";
 import { EditableFiles } from "@/components/fields/EditableFiles";
 import { Button } from "@/components/ui/button";
 import { Paperclip } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface PageProps {
 	params: Promise<{ id: string }>;
@@ -18,61 +19,72 @@ export default async function PageNote({ params }: PageProps) {
 	return (
 		<EntityPage entity="notes" params={params}>
 			{(note) => (
-				<div className="max-w-5xl mx-auto p-6">
-					{/* ✅ redirectOnDelete — при удалении из ДРУГОЙ вкладки → redirect */}
-					<EntityEditor
-						entity="notes"
-						entityId={note.id}
-						initialData={note}
-						redirectOnDelete="/notes"
-					>
-						<div className="grid gap-4">
-							<EntityField
+				<div className="max-w-2xl mx-auto p-6">
+					<Card>
+						<CardContent>
+							{/* ✅ redirectOnDelete — при удалении из ДРУГОЙ вкладки → redirect */}
+							<EntityEditor
 								entity="notes"
 								entityId={note.id}
-								name="title"
-							/>
-							<EntityField
-								entity="notes"
-								entityId={note.id}
-								name="description"
-							/>
-							<EntityField
-								entity="notes"
-								entityId={note.id}
-								name="status"
-							/>
+								initialData={note}
+								redirectOnDelete="/notes"
+							>
+								<div className="grid gap-4">
+									<div className="flex items-end gap-2">
+										<EntityField
+											entity="notes"
+											entityId={note.id}
+											name="title"
+											className="flex-1"
+										/>
+										<EntityField
+											entity="notes"
+											entityId={note.id}
+											name="is_favorite"
+											customProps={{ label: "" }}
+										/>
+									</div>
+									<EntityField
+										entity="notes"
+										entityId={note.id}
+										name="description"
+									/>
+									<EntityField
+										entity="notes"
+										entityId={note.id}
+										name="status"
+									/>
 
-							{/* ✅ Категория — через EntityField, конфиг из registry */}
-							<EntityField
-								entity="notes"
-								entityId={note.id}
-								name="category_id"
-							/>
+									{/* ✅ Категория — через EntityField, конфиг из registry */}
+									<EntityField
+										entity="notes"
+										entityId={note.id}
+										name="category_id"
+									/>
 
-							{/* ✅ Теги — через EntityField, конфиг из registry */}
-							<EntityField
-								entity="notes"
-								entityId={note.id}
-								name="tags"
-							/>
+									{/* ✅ Теги — через EntityField, конфиг из registry */}
+									<EntityField
+										entity="notes"
+										entityId={note.id}
+										name="tags"
+									/>
 
-							{/* <EntityField
+									{/* <EntityField
 								entity="notes"
 								entityId={note.id}
 								name="files"
 							/> */}
 
-							<EditableFiles
-								entity="notes"
-								entityId={note.id}
-								field="files"
-								label="Файлы"
-								variant="compact"
-								maxFiles={5}
-							/>
+									<EditableFiles
+										entity="notes"
+										entityId={note.id}
+										field="files"
+										label="Файлы"
+										variant="compact"
+										maxFiles={5}
+									/>
 
-							{/* <EditableFiles
+									{/* <EditableFiles
 								entity="notes"
 								entityId={note.id}
 								field="files"
@@ -114,18 +126,20 @@ export default async function PageNote({ params }: PageProps) {
 								/>
 							</div> */}
 
-							{/* ✅ Delete из ЭТОЙ вкладки — свой redirect */}
-							<DeleteEntityButton
-								entity="notes"
-								entityId={note.id}
-								redirectTo="/notes"
-								confirmTitle="Удалить заметку?"
-								confirmDescription="Это действие нельзя отменить."
-								confirmText="Удалить"
-								cancelText="Отмена"
-							/>
-						</div>
-					</EntityEditor>
+									{/* ✅ Delete из ЭТОЙ вкладки — свой redirect */}
+									<DeleteEntityButton
+										entity="notes"
+										entityId={note.id}
+										redirectTo="/notes"
+										confirmTitle="Удалить заметку?"
+										confirmDescription="Это действие нельзя отменить."
+										confirmText="Удалить"
+										cancelText="Отмена"
+									/>
+								</div>
+							</EntityEditor>
+						</CardContent>
+					</Card>
 				</div>
 			)}
 		</EntityPage>
