@@ -17,6 +17,7 @@ export type EntityDataMap = {
 		description: string | null
 		status: 'todo' | 'in_progress' | 'review' | 'done' | 'archived'
 		category_id: string | null
+		tags: string[]
 		is_favorite: boolean
 		created_at: string
 		updated_at: string

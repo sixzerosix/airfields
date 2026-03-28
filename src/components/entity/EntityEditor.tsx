@@ -6,6 +6,7 @@ import { useStore, selectEntity } from "@/lib/store";
 import { subscribeToEntity } from "@/lib/supabase/realtime";
 import type { EntityType, EntityDataMap } from "@/lib/schemas";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 // ============================================================================
 // TYPES
@@ -131,7 +132,7 @@ export function EntityEditor<E extends EntityType>({
 	}
 
 	return (
-		<div className={className}>
+		<div className={cn(className, "group")}>
 			{typeof children === "function" ? children(displayData) : children}
 		</div>
 	);

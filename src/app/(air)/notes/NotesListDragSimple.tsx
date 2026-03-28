@@ -28,6 +28,8 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 	// ✅ ОДИН state для управления Dialog
@@ -51,51 +53,54 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 
 	return (
 		<div className="max-w-3xl mx-auto p-4 space-y-4">
-			<h1 className="text-2xl font-bold">Notes</h1>
-			<CreateEntityDialog
-				entity="notes"
-				trigger={
-					<Button>
-						<Plus className="w-4 h-4 mr-2" />
-						New Note
-					</Button>
-				}
-				title="Create Note"
-				initialValues={{ status: "todo" }}
-				onSuccess={(id) => console.log("Created:", id)}
-			>
-				{(tempId) => (
-					<>
-						<EntityField
-							entity="notes"
-							entityId={tempId}
-							name="title"
-						/>
-						<EntityField
-							entity="notes"
-							entityId={tempId}
-							name="description"
-						/>
-						<EntityField
-							entity="notes"
-							entityId={tempId}
-							name="category_id"
-						/>
-						<EntityField
-							entity="notes"
-							entityId={tempId}
-							name="tags"
-						/>
-					</>
-				)}
-			</CreateEntityDialog>
-
+			<div className="flex justify-between items-end">
+				<h1 className="text-2xl font-bold">Notes</h1>
+				<CreateEntityDialog
+					entity="notes"
+					trigger={
+						<Button>
+							<Plus className="w-4 h-4 mr-2" />
+							New Note
+						</Button>
+					}
+					title="Create Note"
+					initialValues={{ status: "todo" }}
+					onSuccess={(id) => console.log("Created:", id)}
+				>
+					{(tempId) => (
+						<>
+							<EntityField
+								entity="notes"
+								entityId={tempId}
+								name="title"
+							/>
+							<EntityField
+								entity="notes"
+								entityId={tempId}
+								name="description"
+							/>
+							<EntityField
+								entity="notes"
+								entityId={tempId}
+								name="category_id"
+							/>
+							<EntityField
+								entity="notes"
+								entityId={tempId}
+								name="tags"
+							/>
+						</>
+					)}
+				</CreateEntityDialog>
+			</div>
 			<CreateEntityInline
 				entity="notes"
 				initialValues={{ status: "todo" }}
 				alwaysOpen={false}
 				autoClose={false}
 				submitText="Add Note"
+
+				// onSuccess={(id) => toast.info("Заметка создана")}
 			>
 				{(tempId) => (
 					<div className="grid gap-3">
@@ -135,6 +140,10 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 						entity="notes"
 						entityId={note.id}
 						initialData={note}
+						className={
+							(note.is_favorite && "group-hover:text-blue-600") ||
+							""
+						}
 					>
 						<div className="flex items-center gap-3">
 							<Link href={`/notes/${note.id}`} className="flex-1">
@@ -149,7 +158,10 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 								customProps={{ label: "" }}
 								className="min-w-[120px]"
 							/> */}
-
+							{/* {note.tags.map((tag) => (
+								<Badge key={tag}>{tag}</Badge>
+							))} */}
+							{note.tags}
 							<EntityField
 								entity="notes"
 								entityId={note.id}
@@ -171,6 +183,16 @@ export function NotesSimple({ initialNotes }: { initialNotes: Note[] }) {
 								</DropdownMenuTrigger>
 
 								<DropdownMenuContent align="end" className="">
+									<DropdownMenuItem asChild>
+										<EntityField
+											entity="notes"
+											entityId={note.id}
+											name="is_favorite"
+											customProps={{
+												label: "Избранное",
+											}}
+										/>
+									</DropdownMenuItem>
 									<DropdownMenuItem asChild>
 										<Button
 											variant="ghost"
