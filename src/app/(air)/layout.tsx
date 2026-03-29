@@ -1,4 +1,4 @@
-import { LogOutButton } from "@/_airfields/components/auth/logout-button";
+import { LogOutButton } from "@/components/auth/logout-button";
 
 export default function FieldsLayout({
 	children,

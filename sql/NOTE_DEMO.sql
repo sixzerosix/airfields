@@ -646,3 +646,137 @@ ADD
 	COLUMN is_favorite boolean NOT NULL DEFAULT false;
 
 CREATE INDEX idx_notes_favorite ON notes (user_id, is_favorite);
+
+
+-- =============================================
+-- INDEXES: notes (текущая таблица)
+-- =============================================
+-- Уже существуют (из full-database.sql):
+--   idx_notes_user_id         ON notes (user_id)
+--   idx_notes_user_position   ON notes (user_id, position)
+--   idx_notes_status           ON notes (status)
+--   idx_notes_category         ON notes (category_id)
+
+-- Новые — для серверной пагинации и фильтрации:
+
+-- Сортировка по дате (самый частый кейс)
+CREATE INDEX IF NOT EXISTS idx_notes_created_desc
+    ON notes (user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_notes_updated_desc
+    ON notes (user_id, updated_at DESC);
+
+-- Составной: favorite + сортировка (priorityFields)
+CREATE INDEX IF NOT EXISTS idx_notes_favorite_created
+    ON notes (user_id, is_favorite DESC, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_notes_favorite_updated
+    ON notes (user_id, is_favorite DESC, updated_at DESC);
+
+-- Текстовый поиск (для ILIKE %...%)
+-- pg_trgm даёт 10-100x ускорение для ILIKE на больших таблицах
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX IF NOT EXISTS idx_notes_title_trgm
+    ON notes USING gin (title gin_trgm_ops);
+
+-- Составной: status + дата (фильтр + сортировка одновременно)
+CREATE INDEX IF NOT EXISTS idx_notes_status_created
+    ON notes (user_id, status, created_at DESC);
+
+
+-- =============================================
+-- INDEXES: entity_tags (для JOIN / фильтрация по тегам)
+-- =============================================
+-- Уже существуют:
+--   idx_entity_tags_entity  ON entity_tags (entity_type, entity_id)
+--   idx_entity_tags_tag     ON entity_tags (tag_id)
+--   idx_entity_tags_user    ON entity_tags (user_id)
+
+-- Составной: быстрый lookup "все теги этой заметки"
+CREATE INDEX IF NOT EXISTS idx_entity_tags_lookup
+    ON entity_tags (entity_type, entity_id, tag_id);
+
+
+-- =============================================
+-- INDEXES: entity_files
+-- =============================================
+-- Уже существуют:
+--   idx_entity_files_entity ON entity_files (entity_type, entity_id)
+--   idx_entity_files_file   ON entity_files (file_id)
+
+CREATE INDEX IF NOT EXISTS idx_entity_files_lookup
+    ON entity_files (entity_type, entity_id, file_id);
+
+
+-- =============================================
+-- INDEXES: categories
+-- =============================================
+-- Уже существуют:
+--   idx_categories_user_entity ON categories (user_id, entity_type)
+--   idx_categories_parent      ON categories (parent_id)
+
+
+-- =============================================
+-- =============================================
+-- ШАБЛОН: Индексы для новой entity-таблицы
+-- =============================================
+-- Скопируй и замени {table} на имя таблицы.
+-- Удали ненужные индексы (не все таблицы имеют все поля).
+-- =============================================
+
+/*
+-- === Базовые (обязательные для RLS + пагинации) ===
+CREATE INDEX IF NOT EXISTS idx_{table}_user_id
+    ON {table} (user_id);
+
+CREATE INDEX IF NOT EXISTS idx_{table}_created_desc
+    ON {table} (user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_{table}_updated_desc
+    ON {table} (user_id, updated_at DESC);
+
+
+-- === Position (для drag-and-drop / fractional indexing) ===
+CREATE INDEX IF NOT EXISTS idx_{table}_user_position
+    ON {table} (user_id, position);
+
+
+-- === Priority fields (is_favorite, is_pinned, etc.) ===
+CREATE INDEX IF NOT EXISTS idx_{table}_favorite_created
+    ON {table} (user_id, is_favorite DESC, created_at DESC);
+
+
+-- === Status / enum поля (частый фильтр) ===
+CREATE INDEX IF NOT EXISTS idx_{table}_status
+    ON {table} (status);
+
+CREATE INDEX IF NOT EXISTS idx_{table}_status_created
+    ON {table} (user_id, status, created_at DESC);
+
+
+-- === FK / category (M21 связи) ===
+CREATE INDEX IF NOT EXISTS idx_{table}_category
+    ON {table} (category_id);
+
+
+-- === Текстовый поиск (ILIKE) ===
+-- Требует: CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_{table}_title_trgm
+    ON {table} USING gin (title gin_trgm_ops);
+
+-- Если поиск по нескольким полям:
+CREATE INDEX IF NOT EXISTS idx_{table}_description_trgm
+    ON {table} USING gin (description gin_trgm_ops);
+
+
+-- === Multi-tenant (когда добавишь company_id) ===
+CREATE INDEX IF NOT EXISTS idx_{table}_company
+    ON {table} (company_id);
+
+CREATE INDEX IF NOT EXISTS idx_{table}_company_created
+    ON {table} (company_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_{table}_company_status
+    ON {table} (company_id, status, created_at DESC);
+*/

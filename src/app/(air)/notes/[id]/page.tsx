@@ -55,6 +55,8 @@ export default async function PageNote({ params }: PageProps) {
 										name="status"
 									/>
 
+									
+
 									{/* ✅ Категория — через EntityField, конфиг из registry */}
 									<EntityField
 										entity="notes"
