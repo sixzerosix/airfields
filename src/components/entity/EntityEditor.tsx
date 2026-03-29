@@ -66,16 +66,23 @@ export function EntityEditor<E extends EntityType>({
 	// REAL-TIME SUBSCRIPTION
 	// ==========================================================================
 
-	useEffect(() => {
-		if (!enableRealtime) return;
+	// useEffect(() => {
+	// 	if (!enableRealtime) return;
 
-		const unsubscribe = subscribeToEntity(entity, {
-			column: "id",
-			value: entityId,
-		});
+	// 	subscribeToEntity(entity);
 
-		return () => unsubscribe();
-	}, [entity, entityId, enableRealtime]);
+	// 	return () => {
+	// 		// НЕ отписываемся — канал глобальный
+	// 		// unsubscribe();
+	// 	};
+
+	// 	// const unsubscribe = subscribeToEntity(entity, {
+	// 	// 	column: "id",
+	// 	// 	value: entityId,
+	// 	// });
+
+	// 	// return () => unsubscribe();
+	// }, [entity, entityId, enableRealtime]);
 
 	// ==========================================================================
 	// ✅ DETECT DELETION (cross-tab через realtime)

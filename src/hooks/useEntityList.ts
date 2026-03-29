@@ -59,15 +59,15 @@ export function useEntityList<E extends EntityType>(
 	// REAL-TIME SUBSCRIPTION
 	// ==========================================================================
 
-	useEffect(() => {
-		if (!enableRealtime) return;
+	// useEffect(() => {
+	// 	if (!enableRealtime) return;
 
-		const unsubscribe = filter
-			? subscribeToEntity(entity, filter)
-			: subscribeToEntity(entity);
+	// 	const unsubscribe = filter
+	// 		? subscribeToEntity(entity, filter)
+	// 		: subscribeToEntity(entity);
 
-		return () => unsubscribe();
-	}, [entity, enableRealtime, filter?.column, filter?.value]);
+	// 	return () => unsubscribe();
+	// }, [entity, enableRealtime, filter?.column, filter?.value]);
 
 	// ==========================================================================
 	// GET FROM STORE

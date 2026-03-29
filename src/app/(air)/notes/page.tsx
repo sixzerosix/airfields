@@ -1,6 +1,6 @@
 // app/notes/page.tsx
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { NotesList, NotesTable } from "./NotesList";
+import { NotesList } from "./NotesList";
 import { NotesSimple } from "./NotesListDragSimple";
 import { NotesListServer } from "./NotesListServer";
 
@@ -22,8 +22,8 @@ export default async function NotesPage() {
 	return (
 		<>
 			{/* <NotesTable initialNotes={notes || []} /> */}
-			<NotesList initialNotes={notes || []} />
-			{/* <NotesSimple initialNotes={notes || []} /> */}
+			{/* <NotesList initialNotes={notes || []} /> */}
+			<NotesSimple initialNotes={notes || []} />
 			{/* <NotesListServer initialNotes={notes || []} /> */}
 		</>
 	);
